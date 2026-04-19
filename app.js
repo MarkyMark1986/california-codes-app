@@ -1,0 +1,471 @@
+'use strict';
+
+// ── State ────────────────────────────────────────────────
+const State = {
+  allSections:      [],   // flat array of all 748 section objects
+  filteredSections: [],   // current search/filter result
+  activeCode:       'ALL',
+  searchQuery:      '',
+  isOnline:         navigator.onLine,
+  searchIndex:      null  // Map: keyword -> Set<sectionIndex>
+};
+
+// Code mappings
+const CODE_TO_UI   = { PEN: 'PC', VEH: 'VC', HSC: 'H&S', BPC: 'B&P' };
+const CLASS_LABEL  = {
+  'felony':             'Felony',
+  'misdemeanor':        'Misd.',
+  'infraction':         'Infraction',
+  'felony/misdemeanor': 'Wobbler',
+  'unknown':            ''
+};
+
+// User-typed code aliases → internal JSON code value
+const CODE_ALIASES = {
+  'pc': 'PEN', 'pen': 'PEN', 'penal': 'PEN',
+  'vc': 'VEH', 'veh': 'VEH', 'vehicle': 'VEH',
+  'hs': 'HSC', 'h&s': 'HSC', 'hsc': 'HSC', 'health': 'HSC', 'has': 'HSC',
+  'bp': 'BPC', 'b&p': 'BPC', 'bpc': 'BPC', 'business': 'BPC'
+};
+
+// ── Bootstrap ────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  registerServiceWorker();
+  setupOfflineListeners();
+  setupSearchListeners();
+  setupFilterListeners();
+  setupDetailListeners();
+  loadData();
+});
+
+// ── Service worker ───────────────────────────────────────
+function registerServiceWorker() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js')
+      .catch(err => console.warn('SW registration failed:', err));
+  }
+}
+
+// ── Data loading ─────────────────────────────────────────
+async function loadData() {
+  try {
+    const response = await fetch('./ca_codes.json');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const raw = await response.json();
+
+    // Flatten nested structure: { codes: { PEN: { sections: [] }, ... } }
+    State.allSections = Object.values(raw.codes).flatMap(c => c.sections);
+
+    // Precompute lowercase fields for fast substring search
+    State.allSections.forEach(s => {
+      s._textLower = (s.text     || '').toLowerCase();
+      s._kwLower   = (s.keywords || '').toLowerCase();
+    });
+
+    buildSearchIndex(State.allSections);
+
+    document.getElementById('loading').hidden = true;
+    document.getElementById('results-count').hidden = false;
+
+    State.filteredSections = State.allSections;
+    renderResults(State.allSections);
+    updateCount(State.allSections.length, State.allSections.length);
+
+  } catch (err) {
+    console.error('Failed to load ca_codes.json:', err);
+    document.getElementById('loading').innerHTML =
+      '<p>Failed to load code database. Please refresh.</p>';
+  }
+}
+
+// ── Search index ─────────────────────────────────────────
+function buildSearchIndex(sections) {
+  const index = new Map();
+  sections.forEach((s, idx) => {
+    if (!s.keywords) return;
+    s.keywords.split(',').forEach(kw => {
+      kw = kw.trim().toLowerCase();
+      if (!kw) return;
+      if (!index.has(kw)) index.set(kw, new Set());
+      index.get(kw).add(idx);
+    });
+  });
+  State.searchIndex = index;
+}
+
+// ── Query parser ─────────────────────────────────────────
+/**
+ * Parses raw user input into a typed query object.
+ *
+ * Section lookups:  "187"  "PC 187"  "vc23152"  "23152 vc"  "11350 h&s"
+ * Keyword lookups:  "murder"  "DUI"  "receiving stolen"
+ *
+ * Returns: { type: 'section', num, code } | { type: 'keyword', query }
+ */
+function parseQuery(input) {
+  const s = input.trim();
+  if (!s) return null;
+
+  // [code][space?][number] or [number][space?][code]
+  const m = /^([a-z&]+)\s*(\d+)$|^(\d+)\s*([a-z&]+)$/i.exec(s);
+  if (m) {
+    const codeStr = (m[1] || m[4]).toLowerCase();
+    const num     = m[2] || m[3];
+    const code    = CODE_ALIASES[codeStr];
+    if (code) return { type: 'section', num, code };
+  }
+
+  // Pure number
+  if (/^\d+$/.test(s)) return { type: 'section', num: s, code: null };
+
+  // Everything else
+  return { type: 'keyword', query: s.toLowerCase() };
+}
+
+// ── Search execution ─────────────────────────────────────
+function runSearch() {
+  const query = State.searchQuery.trim();
+  const code  = State.activeCode;
+
+  const pool = code === 'ALL'
+    ? State.allSections
+    : State.allSections.filter(s => s.code === code);
+
+  if (!query) {
+    State.filteredSections = pool;
+    renderResults(pool);
+    updateCount(pool.length, pool.length);
+    hideNoResults();
+    return;
+  }
+
+  const parsed = parseQuery(query);
+  let results  = [];
+
+  if (parsed.type === 'section') {
+    const searchPool = (parsed.code && code === 'ALL')
+      ? State.allSections.filter(s => s.code === parsed.code)
+      : pool;
+
+    const exact   = searchPool.filter(s => s.sectionNumber === parsed.num);
+    const partial = exact.length === 0
+      ? searchPool.filter(s => s.sectionNumber.startsWith(parsed.num))
+      : [];
+
+    results = exact.length ? exact : partial;
+
+  } else {
+    results = keywordSearch(parsed.query, pool);
+  }
+
+  State.filteredSections = results;
+
+  if (results.length === 0) {
+    renderResults([]);
+    showNoResults(query, parsed);
+    updateCount(0, pool.length);
+  } else {
+    hideNoResults();
+    renderResults(results);
+    updateCount(results.length, pool.length);
+  }
+}
+
+function keywordSearch(query, pool) {
+  const terms = query.split(/\s+/).filter(Boolean);
+
+  // Build a set of matching section indices for each term, then AND them
+  let candidateIndices = null;
+
+  terms.forEach(term => {
+    const hits = new Set();
+
+    // 1. Inverted index: exact and prefix key matches
+    for (const [key, idxSet] of State.searchIndex) {
+      if (key.includes(term)) idxSet.forEach(i => hits.add(i));
+    }
+
+    // 2. Substring match on full text and keywords (catches things not in index)
+    pool.forEach((s, localIdx) => {
+      const globalIdx = State.allSections.indexOf(s);
+      if (s._textLower.includes(term) || s._kwLower.includes(term)) {
+        hits.add(globalIdx);
+      }
+    });
+
+    if (candidateIndices === null) {
+      candidateIndices = hits;
+    } else {
+      // AND: keep only sections matching all terms so far
+      candidateIndices = new Set([...candidateIndices].filter(i => hits.has(i)));
+    }
+  });
+
+  if (!candidateIndices || candidateIndices.size === 0) return [];
+
+  // Preserve original pool order; restrict to pool if a code filter is active
+  const poolSet = new Set(pool.map(s => State.allSections.indexOf(s)));
+  return [...candidateIndices]
+    .filter(i => poolSet.has(i))
+    .sort((a, b) => a - b)
+    .map(i => State.allSections[i]);
+}
+
+// ── Rendering ─────────────────────────────────────────────
+function renderResults(sections) {
+  const list = document.getElementById('results-list');
+  const frag = document.createDocumentFragment();
+
+  sections.forEach(s => {
+    const art = document.createElement('article');
+    art.className = 'section-card';
+    art.dataset.id = s.id;
+    art.setAttribute('role', 'listitem');
+    art.setAttribute('tabindex', '0');
+    art.setAttribute('aria-label', `${CODE_TO_UI[s.code] || s.code} section ${s.sectionNumber}`);
+
+    const uiCode  = CODE_TO_UI[s.code] || s.code;
+    const label   = CLASS_LABEL[s.offenseClass] || '';
+    const preview = escapeHtml((s.text || '').substring(0, 140));
+    const hasChapter = s.chapterInfo && s.chapterInfo.trim();
+
+    art.innerHTML = `
+      <div class="card-top">
+        <span class="section-ref">${uiCode}&nbsp;§${s.sectionNumber}</span>
+        <span class="offense-badge badge-${s.offenseClass.replace('/', '-')}">${label}</span>
+      </div>
+      ${hasChapter ? `<p class="chapter-tag">${escapeHtml(s.chapterInfo)}</p>` : ''}
+      <p class="preview">${preview}${s.text.length > 140 ? '…' : ''}</p>
+    `;
+
+    frag.appendChild(art);
+  });
+
+  list.innerHTML = '';
+  list.appendChild(frag);
+}
+
+// ── Detail view ───────────────────────────────────────────
+function openDetail(sectionId) {
+  const s = State.allSections.find(sec => sec.id === sectionId);
+  if (!s) return;
+
+  const uiCode = CODE_TO_UI[s.code] || s.code;
+  const label  = CLASS_LABEL[s.offenseClass] || '';
+
+  document.getElementById('detail-title').textContent = `${uiCode} §${s.sectionNumber}`;
+
+  const badge = document.getElementById('detail-badge');
+  badge.textContent = label;
+  badge.className = `offense-badge badge-${s.offenseClass.replace('/', '-')}`;
+
+  // Breadcrumb: Part › Chapter
+  const crumbParts = [s.partInfo, s.chapterInfo].filter(Boolean);
+  document.getElementById('detail-breadcrumb').textContent = crumbParts.join(' › ');
+
+  document.getElementById('detail-text').innerHTML = formatSectionText(s.text);
+
+  const link = document.getElementById('source-link');
+  link.href = s.sourceUrl || '#';
+
+  const overlay = document.getElementById('detail-overlay');
+  overlay.hidden = false;
+  overlay.querySelector('.detail-body').scrollTop = 0;
+  overlay.focus();
+  document.body.style.overflow = 'hidden';
+
+  history.pushState({ detail: sectionId }, '', `#${encodeURIComponent(sectionId)}`);
+}
+
+function closeDetail() {
+  document.getElementById('detail-overlay').hidden = true;
+  document.body.style.overflow = '';
+  document.getElementById('search-input').focus();
+}
+
+/**
+ * Converts flat legal text into paragraphs by splitting at subsection markers.
+ *
+ * Input:  "(a) Murder is... (b) This section... (1) The act..."
+ * Output: <p>(a) Murder is...</p><p>(b) This section...</p>...
+ *
+ * Splits on " (a) "-style markers (letter/number in parens with surrounding spaces)
+ * to avoid splitting mid-sentence phrases like "pursuant to (a)".
+ */
+function formatSectionText(text) {
+  if (!text) return '<p>(No text available)</p>';
+
+  let t = escapeHtml(text);
+
+  // Insert newline before subsection markers that follow a space
+  // Targets: (a)-(z), (1)-(99), (A)-(Z)
+  t = t.replace(/ (\([a-z]\)|\([A-Z]\)|\(\d{1,2}\)) /g, '\n$1 ');
+
+  return t
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .map(line => `<p>${line}</p>`)
+    .join('');
+}
+
+// ── No-results / live lookup ──────────────────────────────
+function showNoResults(query, parsed) {
+  const el = document.getElementById('no-results');
+  let html = `<p>No results for <strong>${escapeHtml(query)}</strong>.</p>`;
+
+  if (State.isOnline && parsed.type === 'section') {
+    const lawCode = parsed.code || inferCode(parsed.num);
+    if (lawCode) {
+      const url = `https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml`
+        + `?sectionNum=${encodeURIComponent(parsed.num)}.&lawCode=${lawCode}`;
+      const display = `${CODE_TO_UI[lawCode] || lawCode} §${parsed.num}`;
+      html += `<p style="font-size:.85rem;color:var(--text-3);margin-bottom:8px">
+                 Not in local database — look up on the official source:
+               </p>
+               <a href="${url}" target="_blank" rel="noopener noreferrer" class="leginfo-btn">
+                 Look up ${escapeHtml(display)} on leginfo
+               </a>`;
+    }
+  } else if (!State.isOnline && parsed.type === 'section') {
+    html += `<p style="margin-top:12px;font-size:.85rem;color:var(--text-3)">
+               Go online to look up sections not in the local database.
+             </p>`;
+  }
+
+  el.innerHTML = html;
+  el.hidden = false;
+}
+
+function hideNoResults() {
+  document.getElementById('no-results').hidden = true;
+  document.getElementById('no-results').innerHTML = '';
+}
+
+/**
+ * Best-effort code inference from a bare section number, used only for
+ * constructing the leginfo fallback URL.
+ */
+function inferCode(numStr) {
+  if (State.activeCode !== 'ALL') return State.activeCode;
+  const n = parseInt(numStr, 10);
+  if (isNaN(n)) return 'PEN';
+  if (n >= 2800  && n <= 31305) return 'VEH';
+  if (n >= 11000 && n <= 25195) return 'HSC';
+  if (n >= 4060  && n <= 25668) return 'BPC';
+  return 'PEN';
+}
+
+// ── Event listeners ───────────────────────────────────────
+function setupSearchListeners() {
+  const input    = document.getElementById('search-input');
+  const clearBtn = document.getElementById('clear-btn');
+
+  const debouncedSearch = debounce(runSearch, 150);
+
+  input.addEventListener('input', () => {
+    State.searchQuery = input.value;
+    clearBtn.hidden = !input.value;
+    debouncedSearch();
+  });
+
+  clearBtn.addEventListener('click', () => {
+    input.value = '';
+    State.searchQuery = '';
+    clearBtn.hidden = true;
+    input.focus();
+    runSearch();
+  });
+}
+
+function setupFilterListeners() {
+  document.querySelector('.filter-row').addEventListener('click', e => {
+    const pill = e.target.closest('.filter-pill');
+    if (!pill) return;
+
+    document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    State.activeCode = pill.dataset.code;
+    runSearch();
+  });
+}
+
+function setupDetailListeners() {
+  // Open detail on card click or Enter key
+  document.getElementById('results-list').addEventListener('click', e => {
+    const card = e.target.closest('.section-card');
+    if (card) openDetail(card.dataset.id);
+  });
+
+  document.getElementById('results-list').addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const card = e.target.closest('.section-card');
+      if (card) { e.preventDefault(); openDetail(card.dataset.id); }
+    }
+  });
+
+  document.getElementById('back-btn').addEventListener('click', () => {
+    history.back();
+  });
+
+  // Back button / Android back gesture
+  window.addEventListener('popstate', e => {
+    if (!e.state?.detail) closeDetail();
+  });
+
+  // Swipe right to close on mobile
+  setupSwipeToClose();
+}
+
+function setupOfflineListeners() {
+  const update = () => {
+    State.isOnline = navigator.onLine;
+    document.getElementById('offline-banner').hidden = State.isOnline;
+    const dot = document.getElementById('status-dot');
+    dot.className = `status-dot ${State.isOnline ? 'online' : 'offline'}`;
+    dot.title = State.isOnline ? 'Online' : 'Offline';
+  };
+  window.addEventListener('online',  update);
+  window.addEventListener('offline', update);
+  update();
+}
+
+// Swipe right on detail overlay to go back (mobile UX)
+function setupSwipeToClose() {
+  const overlay = document.getElementById('detail-overlay');
+  let startX = 0;
+
+  overlay.addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX;
+  }, { passive: true });
+
+  overlay.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - startX;
+    if (dx > 80 && startX < 60) history.back(); // swipe right from left edge
+  }, { passive: true });
+}
+
+// ── Helpers ───────────────────────────────────────────────
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function updateCount(showing, total) {
+  const el = document.getElementById('results-count');
+  if (State.allSections.length === 0) { el.textContent = ''; return; }
+  el.textContent = showing === total
+    ? `${total.toLocaleString()} sections`
+    : `${showing.toLocaleString()} of ${total.toLocaleString()} sections`;
+}
+
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
+}

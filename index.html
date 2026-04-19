@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1A2F5E">
+  <meta name="description" content="California PC, VC, H&S, B&P field reference for law enforcement">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CA Codes">
+  <title>CA Field Codes</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ── Sticky header ─────────────────────────────────── -->
+  <header id="app-header">
+    <div class="header-top">
+      <div class="header-title">
+        <span class="star-icon" aria-hidden="true">★</span>
+        <span>CA Field Codes</span>
+      </div>
+      <span id="status-dot" class="status-dot online" title="Online"></span>
+    </div>
+
+    <div class="search-row">
+      <label for="search-input" class="sr-only">Search by section number or keyword</label>
+      <input
+        id="search-input"
+        type="search"
+        inputmode="search"
+        placeholder="187, PC 187, VC 23152, DUI, murder…"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+      >
+      <button id="clear-btn" hidden aria-label="Clear search">✕</button>
+    </div>
+
+    <div class="filter-row" role="group" aria-label="Filter by code">
+      <button class="filter-pill active" data-code="ALL">All</button>
+      <button class="filter-pill" data-code="PEN">PC</button>
+      <button class="filter-pill" data-code="VEH">VC</button>
+      <button class="filter-pill" data-code="HSC">H&amp;S</button>
+      <button class="filter-pill" data-code="BPC">B&amp;P</button>
+    </div>
+  </header>
+
+  <!-- ── Offline banner ─────────────────────────────────── -->
+  <div id="offline-banner" hidden role="alert" aria-live="assertive">
+    ⚠ Offline — showing cached data
+  </div>
+
+  <!-- ── Main results ───────────────────────────────────── -->
+  <main id="main-content">
+    <div id="loading" aria-label="Loading code database">
+      <div class="spinner" aria-hidden="true"></div>
+      <span>Loading code database…</span>
+    </div>
+
+    <p id="results-count" aria-live="polite" aria-atomic="true" hidden></p>
+
+    <div id="results-list" role="list" aria-label="Search results"></div>
+
+    <div id="no-results" hidden>
+      <!-- Populated dynamically by showNoResults() -->
+    </div>
+  </main>
+
+  <!-- ── Full-screen section detail ───────────────────────── -->
+  <div
+    id="detail-overlay"
+    hidden
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="detail-title"
+    tabindex="-1"
+  >
+    <div class="detail-header">
+      <button id="back-btn" aria-label="Back to results">← Back</button>
+      <h1 id="detail-title" class="detail-title"></h1>
+      <span id="detail-badge" class="offense-badge"></span>
+    </div>
+
+    <div class="detail-body">
+      <p id="detail-breadcrumb" class="detail-breadcrumb"></p>
+      <div id="detail-text" class="detail-text"></div>
+      <div class="detail-footer">
+        <a id="source-link" class="source-link" href="#" target="_blank" rel="noopener noreferrer">
+          View on leginfo.legislature.ca.gov ↗
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
