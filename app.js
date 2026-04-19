@@ -97,7 +97,8 @@ function buildSearchIndex(sections) {
 /**
  * Parses raw user input into a typed query object.
  *
- * Section lookups:  "187"  "PC 187"  "vc23152"  "23152 vc"  "11350 h&s"
+ * Section lookups:  "187"  "PC 187"  "PC647"  "vc 23152"  "23152 vc"
+ *                   "11350 h&s"  "647(f)"  "PC 647(f)"
  * Keyword lookups:  "murder"  "DUI"  "receiving stolen"
  *
  * Returns: { type: 'section', num, code } | { type: 'keyword', query }
@@ -106,17 +107,32 @@ function parseQuery(input) {
   const s = input.trim();
   if (!s) return null;
 
-  // [code][space?][number] or [number][space?][code]
-  const m = /^([a-z&]+)\s*(\d+)$|^(\d+)\s*([a-z&]+)$/i.exec(s);
+  let m;
+
+  // [code][space][number][opt-subsection]  e.g. "PC 647", "PC 647(f)", "H&S 11550"
+  m = /^([a-z][a-z&]*)\s+(\d[\d.]*)\s*(?:\(.*)?$/i.exec(s);
   if (m) {
-    const codeStr = (m[1] || m[4]).toLowerCase();
-    const num     = m[2] || m[3];
-    const code    = CODE_ALIASES[codeStr];
-    if (code) return { type: 'section', num, code };
+    const code = CODE_ALIASES[m[1].toLowerCase()];
+    if (code) return { type: 'section', num: m[2], code };
   }
 
-  // Pure number
-  if (/^\d+$/.test(s)) return { type: 'section', num: s, code: null };
+  // [code][number] no space  e.g. "vc23152", "PC647"
+  m = /^([a-z][a-z&]*)(\d[\d.]*)\s*(?:\(.*)?$/i.exec(s);
+  if (m) {
+    const code = CODE_ALIASES[m[1].toLowerCase()];
+    if (code) return { type: 'section', num: m[2], code };
+  }
+
+  // [number][space][code]  e.g. "23152 vc", "11350 h&s"
+  m = /^(\d[\d.]*)\s+([a-z][a-z&]*)\s*$/i.exec(s);
+  if (m) {
+    const code = CODE_ALIASES[m[2].toLowerCase()];
+    if (code) return { type: 'section', num: m[1], code };
+  }
+
+  // Number with optional subsection  e.g. "187", "647(f)"
+  m = /^(\d[\d.]*)\s*(?:\(.*)?$/.exec(s);
+  if (m) return { type: 'section', num: m[1], code: null };
 
   // Everything else
   return { type: 'keyword', query: s.toLowerCase() };
