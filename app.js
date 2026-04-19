@@ -49,7 +49,7 @@ function registerServiceWorker() {
 // ── Data loading ─────────────────────────────────────────
 async function loadData() {
   try {
-    const response = await fetch('./ca_codes.json');
+    const response = await fetch('./ca_codes.json?v=2');
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const raw = await response.json();
 
