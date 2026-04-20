@@ -1,6 +1,6 @@
 {
-  "name": "California Field Codes",
-  "short_name": "CA Codes",
+  "name": "CA Legal Code Reference Guide",
+  "short_name": "CA Legal Codes",
   "description": "California PC, VC, H&S, B&P field reference for law enforcement",
   "start_url": "./index.html",
   "display": "standalone",
