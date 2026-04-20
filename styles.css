@@ -287,6 +287,16 @@ body {
 #no-results[hidden] { display: none; }
 #no-results p { margin-bottom: 16px; font-size: .95rem; }
 
+.refine-tip {
+  margin: 16px 0 8px;
+  padding: 10px 14px;
+  background: var(--surface-2, #f0f4ff);
+  border-left: 3px solid var(--navy, #1A2F5E);
+  border-radius: 4px;
+  font-size: .8rem;
+  color: var(--text-2, #555);
+}
+
 .leginfo-btn {
   display: inline-flex;
   align-items: center;

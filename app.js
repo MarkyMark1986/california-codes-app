@@ -2,13 +2,15 @@
 
 // ── State ────────────────────────────────────────────────
 const State = {
-  allSections:      [],   // flat array of all 748 section objects
+  allSections:      [],   // flat array of all section objects
   filteredSections: [],   // current search/filter result
   activeCode:       'ALL',
   searchQuery:      '',
   isOnline:         navigator.onLine,
   searchIndex:      null  // Map: keyword -> Set<sectionIndex>
 };
+
+const MAX_RENDER = 200; // cap DOM nodes; prompt user to refine past this
 
 // Code mappings
 const CODE_TO_UI   = { PEN: 'PC', VEH: 'VC', HSC: 'H&S', BPC: 'B&P' };
@@ -49,15 +51,16 @@ function registerServiceWorker() {
 // ── Data loading ─────────────────────────────────────────
 async function loadData() {
   try {
-    const response = await fetch('./ca_codes.json?v=2');
+    const response = await fetch('./ca_codes.json?v=3');
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const raw = await response.json();
 
     // Flatten nested structure: { codes: { PEN: { sections: [] }, ... } }
     State.allSections = Object.values(raw.codes).flatMap(c => c.sections);
 
-    // Precompute lowercase fields for fast substring search
-    State.allSections.forEach(s => {
+    // Precompute index and lowercase fields for fast search
+    State.allSections.forEach((s, idx) => {
+      s._idx       = idx;
       s._textLower = (s.text     || '').toLowerCase();
       s._kwLower   = (s.keywords || '').toLowerCase();
     });
@@ -68,7 +71,7 @@ async function loadData() {
     document.getElementById('results-count').hidden = false;
 
     State.filteredSections = State.allSections;
-    renderResults(State.allSections);
+    renderResults([]);
     updateCount(State.allSections.length, State.allSections.length);
 
   } catch (err) {
@@ -149,7 +152,7 @@ function runSearch() {
 
   if (!query) {
     State.filteredSections = pool;
-    renderResults(pool);
+    renderResults([]);
     updateCount(pool.length, pool.length);
     hideNoResults();
     return;
@@ -202,10 +205,9 @@ function keywordSearch(query, pool) {
     }
 
     // 2. Substring match on full text and keywords (catches things not in index)
-    pool.forEach((s, localIdx) => {
-      const globalIdx = State.allSections.indexOf(s);
+    pool.forEach(s => {
       if (s._textLower.includes(term) || s._kwLower.includes(term)) {
-        hits.add(globalIdx);
+        hits.add(s._idx);
       }
     });
 
@@ -230,9 +232,13 @@ function keywordSearch(query, pool) {
 // ── Rendering ─────────────────────────────────────────────
 function renderResults(sections) {
   const list = document.getElementById('results-list');
+
+  const overflow = sections.length > MAX_RENDER;
+  const visible  = overflow ? sections.slice(0, MAX_RENDER) : sections;
+
   const frag = document.createDocumentFragment();
 
-  sections.forEach(s => {
+  visible.forEach(s => {
     const art = document.createElement('article');
     art.className = 'section-card';
     art.dataset.id = s.id;
@@ -259,6 +265,13 @@ function renderResults(sections) {
 
   list.innerHTML = '';
   list.appendChild(frag);
+
+  if (overflow) {
+    const tip = document.createElement('p');
+    tip.className = 'refine-tip';
+    tip.textContent = `Showing first ${MAX_RENDER} of ${sections.length.toLocaleString()} results — refine your search to narrow down.`;
+    list.appendChild(tip);
+  }
 }
 
 // ── Detail view ───────────────────────────────────────────
@@ -473,8 +486,12 @@ function escapeHtml(str) {
 function updateCount(showing, total) {
   const el = document.getElementById('results-count');
   if (State.allSections.length === 0) { el.textContent = ''; return; }
+  if (!State.searchQuery) {
+    el.textContent = `${total.toLocaleString()} sections loaded — search by number or keyword`;
+    return;
+  }
   el.textContent = showing === total
-    ? `${total.toLocaleString()} sections`
+    ? `${showing.toLocaleString()} result${showing === 1 ? '' : 's'}`
     : `${showing.toLocaleString()} of ${total.toLocaleString()} sections`;
 }
 
