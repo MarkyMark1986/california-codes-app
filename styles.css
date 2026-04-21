@@ -409,6 +409,14 @@ body {
   margin-bottom: .75em;
 }
 .detail-text p:last-child { margin-bottom: 0; }
+.detail-text p.sub-highlight {
+  background: #FFF7CC;
+  border-left: 4px solid var(--gold);
+  margin-left: -12px;
+  padding: 6px 8px 6px 10px;
+  border-radius: 0 4px 4px 0;
+  font-weight: 500;
+}
 
 .detail-footer {
   margin-top: 28px;

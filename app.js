@@ -7,7 +7,8 @@ const State = {
   activeCode:       'ALL',
   searchQuery:      '',
   isOnline:         navigator.onLine,
-  searchIndex:      null  // Map: keyword -> Set<sectionIndex>
+  searchIndex:      null, // Map: keyword -> Set<sectionIndex>
+  pendingSub:       null  // subsection qualifier (e.g. 'f') to highlight on next openDetail
 };
 
 const MAX_RENDER = 200; // cap DOM nodes; prompt user to refine past this
@@ -104,40 +105,48 @@ function buildSearchIndex(sections) {
  *                   "11350 h&s"  "647(f)"  "PC 647(f)"
  * Keyword lookups:  "murder"  "DUI"  "receiving stolen"
  *
- * Returns: { type: 'section', num, code } | { type: 'keyword', query }
+ * Returns: { type: 'section', num, code, sub } | { type: 'keyword', query }
+ *   sub: lowercase subsection letter/number, e.g. 'f' from "(f)", or null
  */
 function parseQuery(input) {
   const s = input.trim();
   if (!s) return null;
 
+  // Extract the first subsection qualifier e.g. "(f)", "(1)", "(a)"
+  const subMatch = /\(([a-z0-9]+)\)/i.exec(s);
+  const sub = subMatch ? subMatch[1].toLowerCase() : null;
+
+  // Strip all parenthesised qualifiers so the number patterns stay simple
+  const bare = s.replace(/\s*\([^)]*\).*/i, '').trim();
+
   let m;
 
-  // [code][space][number][opt-subsection]  e.g. "PC 647", "PC 647(f)", "H&S 11550"
-  m = /^([a-z][a-z&]*)\s+(\d[\d.]*)\s*(?:\(.*)?$/i.exec(s);
+  // [code][space][number]  e.g. "PC 647", "H&S 11550"
+  m = /^([a-z][a-z&]*)\s+(\d[\d.]*)$/i.exec(bare);
   if (m) {
     const code = CODE_ALIASES[m[1].toLowerCase()];
-    if (code) return { type: 'section', num: m[2], code };
+    if (code) return { type: 'section', num: m[2].replace(/\.$/, ''), code, sub };
   }
 
   // [code][number] no space  e.g. "vc23152", "PC647"
-  m = /^([a-z][a-z&]*)(\d[\d.]*)\s*(?:\(.*)?$/i.exec(s);
+  m = /^([a-z][a-z&]*)(\d[\d.]*)$/i.exec(bare);
   if (m) {
     const code = CODE_ALIASES[m[1].toLowerCase()];
-    if (code) return { type: 'section', num: m[2], code };
+    if (code) return { type: 'section', num: m[2].replace(/\.$/, ''), code, sub };
   }
 
   // [number][space][code]  e.g. "23152 vc", "11350 h&s"
-  m = /^(\d[\d.]*)\s+([a-z][a-z&]*)\s*$/i.exec(s);
+  m = /^(\d[\d.]*)\s+([a-z][a-z&]*)$/i.exec(bare);
   if (m) {
     const code = CODE_ALIASES[m[2].toLowerCase()];
-    if (code) return { type: 'section', num: m[1], code };
+    if (code) return { type: 'section', num: m[1].replace(/\.$/, ''), code, sub };
   }
 
-  // Number with optional subsection  e.g. "187", "647(f)"
-  m = /^(\d[\d.]*)\s*(?:\(.*)?$/.exec(s);
-  if (m) return { type: 'section', num: m[1], code: null };
+  // Bare number  e.g. "187", "647"
+  m = /^(\d[\d.]*)$/.exec(bare);
+  if (m) return { type: 'section', num: m[1].replace(/\.$/, ''), code: null, sub };
 
-  // Everything else
+  // Everything else — use original s (not bare) to preserve the full keyword
   return { type: 'keyword', query: s.toLowerCase() };
 }
 
@@ -161,8 +170,12 @@ function runSearch() {
   const parsed = parseQuery(query);
   let results  = [];
 
+  State.pendingSub = null;
+
   if (parsed.type === 'section') {
-    const searchPool = (parsed.code && code === 'ALL')
+    // When the query names a specific code, search that code regardless of the
+    // active tab filter so "PC 647(f)" always finds PC even on the VC tab.
+    const searchPool = parsed.code
       ? State.allSections.filter(s => s.code === parsed.code)
       : pool;
 
@@ -172,6 +185,7 @@ function runSearch() {
       : [];
 
     results = exact.length ? exact : partial;
+    if (results.length > 0) State.pendingSub = parsed.sub;
 
   } else {
     results = keywordSearch(parsed.query, pool);
@@ -292,15 +306,27 @@ function openDetail(sectionId) {
   const crumbParts = [s.partInfo, s.chapterInfo].filter(Boolean);
   document.getElementById('detail-breadcrumb').textContent = crumbParts.join(' › ');
 
-  document.getElementById('detail-text').innerHTML = formatSectionText(s.text);
+  const sub = State.pendingSub;
+  State.pendingSub = null;
+
+  document.getElementById('detail-text').innerHTML = formatSectionText(s.text, sub);
 
   const link = document.getElementById('source-link');
   link.href = s.sourceUrl || '#';
 
   const overlay = document.getElementById('detail-overlay');
   overlay.hidden = false;
-  overlay.querySelector('.detail-body').scrollTop = 0;
   overlay.focus();
+
+  // Scroll to highlighted subsection, or to top if none
+  const body = overlay.querySelector('.detail-body');
+  const highlighted = document.getElementById('detail-text').querySelector('.sub-highlight');
+  if (highlighted) {
+    // Use requestAnimationFrame so the DOM is painted before we measure
+    requestAnimationFrame(() => highlighted.scrollIntoView({ block: 'center', behavior: 'instant' }));
+  } else {
+    body.scrollTop = 0;
+  }
   document.body.style.overflow = 'hidden';
 
   history.pushState({ detail: sectionId }, '', `#${encodeURIComponent(sectionId)}`);
@@ -321,7 +347,7 @@ function closeDetail() {
  * Splits on " (a) "-style markers (letter/number in parens with surrounding spaces)
  * to avoid splitting mid-sentence phrases like "pursuant to (a)".
  */
-function formatSectionText(text) {
+function formatSectionText(text, sub) {
   if (!text) return '<p>(No text available)</p>';
 
   let t = escapeHtml(text);
@@ -330,11 +356,19 @@ function formatSectionText(text) {
   // Targets: (a)-(z), (1)-(99), (A)-(Z)
   t = t.replace(/ (\([a-z]\)|\([A-Z]\)|\(\d{1,2}\)) /g, '\n$1 ');
 
+  // Pattern that matches a line starting with the requested subsection e.g. "(f)"
+  const subRe = sub ? new RegExp('^\\(' + sub + '\\)', 'i') : null;
+
   return t
     .split('\n')
     .map(line => line.trim())
     .filter(line => line.length > 0)
-    .map(line => `<p>${line}</p>`)
+    .map(line => {
+      if (subRe && subRe.test(line)) {
+        return `<p class="sub-highlight">${line}</p>`;
+      }
+      return `<p>${line}</p>`;
+    })
     .join('');
 }
 
