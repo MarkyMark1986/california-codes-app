@@ -15,7 +15,7 @@ const State = {
 const MAX_RENDER = 200; // cap DOM nodes; prompt user to refine past this
 
 // Code mappings
-const CODE_TO_UI   = { PEN: 'PC', VEH: 'VC', HSC: 'H&S', BPC: 'B&P', EMC: 'EMC' };
+const CODE_TO_UI   = { PEN: 'PC', VEH: 'VC', HSC: 'H&S', BPC: 'B&P', EMC: 'EMC', WIC: 'WI' };
 const CLASS_LABEL  = {
   'felony':             'Felony',
   'misdemeanor':        'Misd.',
@@ -203,7 +203,8 @@ const CODE_ALIASES = {
   'pc': 'PEN', 'pen': 'PEN', 'penal': 'PEN',
   'vc': 'VEH', 'veh': 'VEH', 'vehicle': 'VEH',
   'hs': 'HSC', 'h&s': 'HSC', 'hsc': 'HSC', 'health': 'HSC', 'has': 'HSC',
-  'bp': 'BPC', 'b&p': 'BPC', 'bpc': 'BPC', 'business': 'BPC'
+  'bp': 'BPC', 'b&p': 'BPC', 'bpc': 'BPC', 'business': 'BPC',
+  'wi': 'WIC', 'wic': 'WIC', 'welfare': 'WIC'
 };
 
 // ── Bootstrap ────────────────────────────────────────────
@@ -229,7 +230,7 @@ function registerServiceWorker() {
 // ── Data loading ─────────────────────────────────────────
 async function loadData() {
   try {
-    const response = await fetch('./ca_codes.json?v=5');
+    const response = await fetch('./ca_codes.json?v=6');
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const raw = await response.json();
 
@@ -631,7 +632,7 @@ function showNoResults(query, parsed) {
 
   if (State.isOnline && parsed.type === 'section') {
     const lawCode = parsed.code || inferCode(parsed.num);
-    if (lawCode && lawCode !== 'EMC') {
+    if (lawCode && lawCode !== 'EMC' && lawCode !== 'WIC') {
       const url = `https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml`
         + `?sectionNum=${encodeURIComponent(parsed.num)}.&lawCode=${lawCode}`;
       const display = `${CODE_TO_UI[lawCode] || lawCode} §${parsed.num}`;
