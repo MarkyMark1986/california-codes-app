@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ca-codes-v4';
+const CACHE_NAME = 'ca-codes-v5';
 
 const PRECACHE_ASSETS = [
   './',

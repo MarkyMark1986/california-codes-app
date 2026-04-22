@@ -318,14 +318,18 @@ function openDetail(sectionId) {
   overlay.hidden = false;
   overlay.focus();
 
-  // Scroll to highlighted subsection, or to top if none
+  // Scroll to highlighted subsection, or reset to top
   const body = overlay.querySelector('.detail-body');
+  body.scrollTop = 0;
   const highlighted = document.getElementById('detail-text').querySelector('.sub-highlight');
   if (highlighted) {
-    // Use requestAnimationFrame so the DOM is painted before we measure
-    requestAnimationFrame(() => highlighted.scrollIntoView({ block: 'center', behavior: 'instant' }));
-  } else {
-    body.scrollTop = 0;
+    // Double rAF: first frame lets the browser calculate layout after un-hiding
+    // the overlay; second frame fires once layout is stable and scroll is reliable.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        highlighted.scrollIntoView({ block: 'center', behavior: 'instant' });
+      });
+    });
   }
   document.body.style.overflow = 'hidden';
 
@@ -338,25 +342,21 @@ function closeDetail() {
   document.getElementById('search-input').focus();
 }
 
-/**
- * Converts flat legal text into paragraphs by splitting at subsection markers.
- *
- * Input:  "(a) Murder is... (b) This section... (1) The act..."
- * Output: <p>(a) Murder is...</p><p>(b) This section...</p>...
- *
- * Splits on " (a) "-style markers (letter/number in parens with surrounding spaces)
- * to avoid splitting mid-sentence phrases like "pursuant to (a)".
- */
 function formatSectionText(text, sub) {
   if (!text) return '<p>(No text available)</p>';
 
   let t = escapeHtml(text);
 
-  // Insert newline before subsection markers that follow a space
-  // Targets: (a)-(z), (1)-(99), (A)-(Z)
-  t = t.replace(/ (\([a-z]\)|\([A-Z]\)|\(\d{1,2}\)) /g, '\n$1 ');
+  // Normalize non-breaking spaces (U+00A0) — leginfo pages use these after
+  // subdivision markers, which would otherwise prevent the split regex matching.
+  t = t.replace(/\u00a0/g, ' ');
 
-  // Pattern that matches a line starting with the requested subsection e.g. "(f)"
+  // Insert a newline before each subsection/subdivision marker that follows
+  // sentence-ending punctuation (. ! ; :).  Using punctuation as the trigger
+  // avoids false-splits on mid-sentence references like "subdivision (a) of…".
+  // Handles single letters (a)-(z)/(A)-(Z), double letters (aa)/(bb), 1-3 digit numbers.
+  t = t.replace(/([.!;:])\s+(\([a-zA-Z]{1,2}\)|\(\d{1,3}\))[\s\u00a0]/g, '$1\n$2 ');
+
   const subRe = sub ? new RegExp('^\\(' + sub + '\\)', 'i') : null;
 
   return t
@@ -364,9 +364,7 @@ function formatSectionText(text, sub) {
     .map(line => line.trim())
     .filter(line => line.length > 0)
     .map(line => {
-      if (subRe && subRe.test(line)) {
-        return `<p class="sub-highlight">${line}</p>`;
-      }
+      if (subRe && subRe.test(line)) return `<p class="sub-highlight">${line}</p>`;
       return `<p>${line}</p>`;
     })
     .join('');
