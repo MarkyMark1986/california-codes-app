@@ -8,7 +8,8 @@ const State = {
   searchQuery:      '',
   isOnline:         navigator.onLine,
   searchIndex:      null, // Map: keyword -> Set<sectionIndex>
-  pendingSub:       null  // subsection qualifier (e.g. 'f') to highlight on next openDetail
+  pendingSub:       null, // subsection qualifier (e.g. 'f') to highlight on next openDetail
+  activeCategory:   null  // { id, label } of the currently active browse category
 };
 
 const MAX_RENDER = 200; // cap DOM nodes; prompt user to refine past this
@@ -22,6 +23,180 @@ const CLASS_LABEL  = {
   'felony/misdemeanor': 'Wobbler',
   'unknown':            ''
 };
+
+// ── Browse categories ─────────────────────────────────────
+// Each category has section-number ranges per code.
+// Ranges are inclusive: parseFloat(sectionNumber) >= min && <= max.
+const CATEGORIES = [
+  {
+    id: 'persons', label: 'Crimes Against Persons',
+    sub: 'homicide · assault · battery · robbery · kidnapping',
+    accent: '#B91C1C',
+    ranges: [
+      { code: 'PEN', min: 187,   max: 199.9  },  // murder, manslaughter
+      { code: 'PEN', min: 203,   max: 206.9  },  // mayhem
+      { code: 'PEN', min: 207,   max: 210.9  },  // kidnapping
+      { code: 'PEN', min: 211,   max: 215.9  },  // robbery, carjacking
+      { code: 'PEN', min: 217.1, max: 225.9  },  // assault on officials
+      { code: 'PEN', min: 240,   max: 248.9  },  // assault & battery
+      { code: 'PEN', min: 422,   max: 422.9  },  // criminal threats
+      { code: 'PEN', min: 646.9, max: 647    },  // stalking
+    ]
+  },
+  {
+    id: 'sex', label: 'Sex Crimes',
+    sub: 'rape · lewd acts · sex offender registration',
+    accent: '#C2410C',
+    ranges: [
+      { code: 'PEN', min: 261,   max: 269.9  },  // rape, sexual assault
+      { code: 'PEN', min: 286,   max: 290.9  },  // sodomy, oral copulation, registration
+      { code: 'PEN', min: 311,   max: 313.9  },  // obscene material
+      { code: 'PEN', min: 647.6, max: 647.69 },  // annoying/molesting child
+    ]
+  },
+  {
+    id: 'property', label: 'Property Crimes',
+    sub: 'burglary · theft · arson · vandalism',
+    accent: '#B45309',
+    ranges: [
+      { code: 'PEN', min: 451,   max: 457.9  },  // arson
+      { code: 'PEN', min: 459,   max: 470.9  },  // burglary
+      { code: 'PEN', min: 484,   max: 502.9  },  // theft (petty & grand), embezzlement
+      { code: 'PEN', min: 594,   max: 598.9  },  // vandalism, malicious mischief
+      { code: 'PEN', min: 666,   max: 666.9  },  // petty theft with prior
+    ]
+  },
+  {
+    id: 'drugs', label: 'Drug Offenses',
+    sub: 'possession · sale · manufacturing · paraphernalia',
+    accent: '#065F46',
+    ranges: [
+      { code: 'HSC', min: 11053, max: 11058.9 },  // controlled substance schedules
+      { code: 'HSC', min: 11150, max: 11165.9 },  // prescriptions
+      { code: 'HSC', min: 11350, max: 11395.9 },  // narcotics — possession & sale
+      { code: 'HSC', min: 11364, max: 11382.9 },  // paraphernalia, stimulants
+      { code: 'HSC', min: 11550, max: 11552.9 },  // under influence
+      { code: 'BPC', min: 4060,  max: 4068.9  },  // prescription regulations
+      { code: 'BPC', min: 4140,  max: 4145.9  },  // hypodermic devices
+    ]
+  },
+  {
+    id: 'weapons', label: 'Weapons Offenses',
+    sub: 'firearms · brandishing · prohibited persons · illegal weapons',
+    accent: '#374151',
+    ranges: [
+      { code: 'PEN', min: 245,   max: 247.9  },  // assault with deadly weapon / shooting
+      { code: 'PEN', min: 417,   max: 418.9  },  // brandishing
+      { code: 'PEN', min: 25100, max: 26915.9},  // carry, possession, dealer regs
+      { code: 'PEN', min: 29800, max: 29830.9},  // prohibited persons with firearms
+      { code: 'PEN', min: 30305, max: 30306.9},  // ammunition restrictions
+      { code: 'PEN', min: 32625, max: 32625.9},  // machine guns
+      { code: 'PEN', min: 33215, max: 33215.9},  // short-barreled rifles/shotguns
+    ]
+  },
+  {
+    id: 'dui', label: 'DUI & Impaired Driving',
+    sub: 'DUI · reckless driving · BAC · prior convictions',
+    accent: '#1D4ED8',
+    ranges: [
+      { code: 'VEH', min: 23103, max: 23115.9 },  // reckless driving
+      { code: 'VEH', min: 23136, max: 23249.9 },  // DUI — all provisions
+      { code: 'VEH', min: 23550, max: 23566.9 },  // DUI priors / repeat offenders
+      { code: 'VEH', min: 31301, max: 31305.9 },  // open container
+    ]
+  },
+  {
+    id: 'moving', label: 'Moving Violations',
+    sub: 'speed · signals · right-of-way · hit & run · evading',
+    accent: '#0369A1',
+    ranges: [
+      { code: 'VEH', min: 2800,  max: 2818.9  },  // evading officer
+      { code: 'VEH', min: 20001, max: 20012.9 },  // hit and run
+      { code: 'VEH', min: 21453, max: 21469.9 },  // traffic signals
+      { code: 'VEH', min: 21650, max: 21720.9 },  // lanes, passing
+      { code: 'VEH', min: 21800, max: 21812.9 },  // right of way
+      { code: 'VEH', min: 21950, max: 21963.9 },  // pedestrian right of way
+      { code: 'VEH', min: 22100, max: 22122.9 },  // turning & U-turns
+      { code: 'VEH', min: 22349, max: 22413.9 },  // speed
+    ]
+  },
+  {
+    id: 'equipment', label: 'Equipment Violations',
+    sub: 'lights · brakes · seatbelts · windows · exhaust',
+    accent: '#0C4A6E',
+    ranges: [
+      { code: 'VEH', min: 24000, max: 24018.9 },  // general equipment
+      { code: 'VEH', min: 24400, max: 24413.9 },  // lighting
+      { code: 'VEH', min: 26300, max: 26311.9 },  // brakes
+      { code: 'VEH', min: 26700, max: 26714.9 },  // windows / windshield
+      { code: 'VEH', min: 27150, max: 27165.9 },  // muffler / exhaust
+      { code: 'VEH', min: 27315, max: 27366.9 },  // seatbelts & child seats
+      { code: 'VEH', min: 27800, max: 27804.9 },  // motorcycle equipment
+    ]
+  },
+  {
+    id: 'tow', label: 'Tow Authorities',
+    sub: 'vehicle removal · impound · storage · lien sale',
+    accent: '#1E3A5F',
+    ranges: [
+      { code: 'VEH', min: 10750, max: 10757.9 },  // vehicle identification
+      { code: 'VEH', min: 14600, max: 14612.9 },  // suspended / unlicensed — impound
+      { code: 'VEH', min: 22650, max: 22712.9 },  // vehicle removal from highway
+      { code: 'VEH', min: 22850, max: 22856.9 },  // impound authority
+    ]
+  },
+  {
+    id: 'fraud', label: 'Fraud & Financial Crimes',
+    sub: 'forgery · identity theft · extortion · false pretenses',
+    accent: '#6B21A8',
+    ranges: [
+      { code: 'PEN', min: 470,   max: 483.9  },  // forgery, counterfeiting
+      { code: 'PEN', min: 484,   max: 502.9  },  // theft by fraud, embezzlement
+      { code: 'PEN', min: 518,   max: 527.9  },  // extortion, blackmail
+      { code: 'PEN', min: 530,   max: 538.9  },  // identity theft, impersonation
+      { code: 'BPC', min: 17200, max: 17210.9 }, // unfair business practices
+      { code: 'BPC', min: 17500, max: 17510.9 }, // false advertising
+    ]
+  },
+  {
+    id: 'public-order', label: 'Public Order',
+    sub: 'disorderly conduct · trespass · riot · disturbing peace',
+    accent: '#0F766E',
+    ranges: [
+      { code: 'PEN', min: 370,   max: 375.9  },  // public nuisance
+      { code: 'PEN', min: 404,   max: 420.9  },  // riot, unlawful assembly
+      { code: 'PEN', min: 594,   max: 600.9  },  // vandalism / interference
+      { code: 'PEN', min: 602,   max: 603.9  },  // trespass
+      { code: 'PEN', min: 626,   max: 632.9  },  // schools, eavesdropping
+      { code: 'PEN', min: 647,   max: 651.9  },  // disorderly conduct
+    ]
+  },
+  {
+    id: 'dv', label: 'Domestic Violence',
+    sub: 'corporal injury · protective orders · stalking',
+    accent: '#BE123C',
+    ranges: [
+      { code: 'PEN', min: 136.1, max: 136.99 },  // dissuading a witness / victim
+      { code: 'PEN', min: 243,   max: 243.9  },  // battery (includes 243(e) domestic)
+      { code: 'PEN', min: 273.5, max: 273.79 },  // corporal injury to spouse / cohabitant
+      { code: 'PEN', min: 422,   max: 422.9  },  // criminal threats
+      { code: 'PEN', min: 646.9, max: 647    },  // stalking
+    ]
+  },
+  {
+    id: 'children', label: 'Crimes Against Children',
+    sub: 'abuse · neglect · lewd acts · child abduction',
+    accent: '#7C3AED',
+    ranges: [
+      { code: 'PEN', min: 270,   max: 273.4  },  // child neglect, contributing
+      { code: 'PEN', min: 273.4, max: 273.9  },  // child abuse / endangerment
+      { code: 'PEN', min: 278,   max: 280.9  },  // child abduction / custody
+      { code: 'PEN', min: 288,   max: 289.9  },  // lewd acts, sexual abuse of child
+      { code: 'PEN', min: 311,   max: 313.9  },  // obscene material — minors
+      { code: 'PEN', min: 647.6, max: 647.69 },  // annoying / molesting child
+    ]
+  },
+];
 
 // User-typed code aliases → internal JSON code value
 const CODE_ALIASES = {
@@ -38,6 +213,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSearchListeners();
   setupFilterListeners();
   setupDetailListeners();
+  setupCategoryListeners();
+  buildCategoriesOverlay();
   loadData();
 });
 
@@ -155,11 +332,26 @@ function runSearch() {
   const query = State.searchQuery.trim();
   const code  = State.activeCode;
 
+  // Typing a new query clears any active browse category
+  if (query && State.activeCategory) {
+    State.activeCategory = null;
+    updateCategoryBar();
+  }
+
   const pool = code === 'ALL'
     ? State.allSections
     : State.allSections.filter(s => s.code === code);
 
   if (!query) {
+    // If a category is active, show its sections (still filtered by code tab)
+    if (State.activeCategory) {
+      const catSections = getCategorySections(State.activeCategory.id, pool);
+      State.filteredSections = catSections;
+      hideNoResults();
+      renderResults(catSections);
+      updateCount(catSections.length, pool.length);
+      return;
+    }
     State.filteredSections = pool;
     renderResults([]);
     updateCount(pool.length, pool.length);
@@ -471,6 +663,87 @@ function inferCode(numStr) {
   if (n >= 11000 && n <= 25195) return 'HSC';
   if (n >= 4060  && n <= 25668) return 'BPC';
   return 'PEN';
+}
+
+// ── Browse categories ─────────────────────────────────────
+
+function buildCategoriesOverlay() {
+  const list = document.getElementById('cat-list');
+  list.innerHTML = CATEGORIES.map(cat => `
+    <button class="cat-item" data-cat-id="${cat.id}"
+            style="--cat-accent:${cat.accent}">
+      <span class="cat-dot" aria-hidden="true"></span>
+      <span class="cat-item-body">
+        <span class="cat-item-label">${cat.label}</span>
+        <span class="cat-item-sub">${cat.sub}</span>
+      </span>
+      <span class="cat-arrow" aria-hidden="true">›</span>
+    </button>
+  `).join('');
+}
+
+function setupCategoryListeners() {
+  document.getElementById('browse-btn').addEventListener('click', openCategories);
+  document.getElementById('cat-back-btn').addEventListener('click', closeCategories);
+  document.getElementById('cat-list').addEventListener('click', e => {
+    const btn = e.target.closest('.cat-item');
+    if (btn) selectCategory(btn.dataset.catId);
+  });
+  document.getElementById('clear-cat-btn').addEventListener('click', clearCategory);
+}
+
+function openCategories() {
+  const overlay = document.getElementById('cat-overlay');
+  overlay.hidden = false;
+  overlay.focus();
+  document.body.style.overflow = 'hidden';
+}
+
+function closeCategories() {
+  document.getElementById('cat-overlay').hidden = true;
+  document.body.style.overflow = '';
+}
+
+function selectCategory(id) {
+  const cat = CATEGORIES.find(c => c.id === id);
+  if (!cat) return;
+  closeCategories();
+
+  // Clear search input so the category drives results
+  const input = document.getElementById('search-input');
+  input.value = '';
+  State.searchQuery = '';
+  document.getElementById('clear-btn').hidden = true;
+
+  State.activeCategory = { id: cat.id, label: cat.label };
+  updateCategoryBar();
+  runSearch();
+}
+
+function clearCategory() {
+  State.activeCategory = null;
+  updateCategoryBar();
+  runSearch();
+}
+
+function updateCategoryBar() {
+  const bar   = document.getElementById('cat-bar');
+  const label = document.getElementById('cat-bar-label');
+  if (State.activeCategory) {
+    label.textContent = State.activeCategory.label;
+    bar.hidden = false;
+  } else {
+    bar.hidden = true;
+  }
+}
+
+function getCategorySections(catId, pool) {
+  const cat = CATEGORIES.find(c => c.id === catId);
+  if (!cat) return [];
+  return pool.filter(s => {
+    const n = parseFloat(s.sectionNumber);
+    return cat.ranges.some(r => s.code === r.code && n >= r.min && n <= r.max);
+  });
 }
 
 // ── Event listeners ───────────────────────────────────────
