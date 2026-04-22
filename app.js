@@ -15,7 +15,7 @@ const State = {
 const MAX_RENDER = 200; // cap DOM nodes; prompt user to refine past this
 
 // Code mappings
-const CODE_TO_UI   = { PEN: 'PC', VEH: 'VC', HSC: 'H&S', BPC: 'B&P' };
+const CODE_TO_UI   = { PEN: 'PC', VEH: 'VC', HSC: 'H&S', BPC: 'B&P', EMC: 'EMC' };
 const CLASS_LABEL  = {
   'felony':             'Felony',
   'misdemeanor':        'Misd.',
@@ -229,7 +229,7 @@ function registerServiceWorker() {
 // ── Data loading ─────────────────────────────────────────
 async function loadData() {
   try {
-    const response = await fetch('./ca_codes.json?v=4');
+    const response = await fetch('./ca_codes.json?v=5');
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const raw = await response.json();
 
@@ -507,7 +507,13 @@ function openDetail(sectionId) {
   document.getElementById('detail-text').innerHTML = renderParas(paras, hilite);
 
   const link = document.getElementById('source-link');
-  link.href = s.sourceUrl || '#';
+  if (s.code === 'EMC') {
+    link.href = s.sourceUrl || 'https://codelibrary.amlegal.com/codes/eureka/latest/overview';
+    link.textContent = 'View on codelibrary.amlegal.com ↗';
+  } else {
+    link.href = s.sourceUrl || '#';
+    link.textContent = 'View on leginfo.legislature.ca.gov ↗';
+  }
 
   const overlay = document.getElementById('detail-overlay');
   overlay.hidden = false;
@@ -625,7 +631,7 @@ function showNoResults(query, parsed) {
 
   if (State.isOnline && parsed.type === 'section') {
     const lawCode = parsed.code || inferCode(parsed.num);
-    if (lawCode) {
+    if (lawCode && lawCode !== 'EMC') {
       const url = `https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml`
         + `?sectionNum=${encodeURIComponent(parsed.num)}.&lawCode=${lawCode}`;
       const display = `${CODE_TO_UI[lawCode] || lawCode} §${parsed.num}`;
