@@ -102,19 +102,19 @@ function buildSearchIndex(sections) {
  * Parses raw user input into a typed query object.
  *
  * Section lookups:  "187"  "PC 187"  "PC647"  "vc 23152"  "23152 vc"
- *                   "11350 h&s"  "647(f)"  "PC 647(f)"
+ *                   "11350 h&s"  "647(f)"  "PC 647(f)"  "PC 647(b)(2)(A)"
  * Keyword lookups:  "murder"  "DUI"  "receiving stolen"
  *
  * Returns: { type: 'section', num, code, sub } | { type: 'keyword', query }
- *   sub: lowercase subsection letter/number, e.g. 'f' from "(f)", or null
+ *   sub: array of lowercase subsection levels e.g. ['b','2','a'] or null
  */
 function parseQuery(input) {
   const s = input.trim();
   if (!s) return null;
 
-  // Extract the first subsection qualifier e.g. "(f)", "(1)", "(a)"
-  const subMatch = /\(([a-z0-9]+)\)/i.exec(s);
-  const sub = subMatch ? subMatch[1].toLowerCase() : null;
+  // Extract all subsection qualifiers in order — "(b)(2)(A)" → ['b','2','a']
+  const subMatches = [...s.matchAll(/\(([a-z0-9]+)\)/gi)];
+  const sub = subMatches.length > 0 ? subMatches.map(m => m[1].toLowerCase()) : null;
 
   // Strip all parenthesised qualifiers so the number patterns stay simple
   const bare = s.replace(/\s*\([^)]*\).*/i, '').trim();
@@ -306,10 +306,13 @@ function openDetail(sectionId) {
   const crumbParts = [s.partInfo, s.chapterInfo].filter(Boolean);
   document.getElementById('detail-breadcrumb').textContent = crumbParts.join(' › ');
 
-  const sub = State.pendingSub;
+  const sub = State.pendingSub;   // array of levels like ['b','2','a'], or null
   State.pendingSub = null;
 
-  document.getElementById('detail-text').innerHTML = formatSectionText(s.text, sub);
+  // Split text into paragraphs, find the target paragraph, then render.
+  const paras   = splitSectionText(s.text);
+  const hilite  = (sub && sub.length) ? findSubParagraph(paras, sub) : -1;
+  document.getElementById('detail-text').innerHTML = renderParas(paras, hilite);
 
   const link = document.getElementById('source-link');
   link.href = s.sourceUrl || '#';
@@ -318,16 +321,16 @@ function openDetail(sectionId) {
   overlay.hidden = false;
   overlay.focus();
 
-  // Scroll to highlighted subsection, or reset to top
+  // Always reset scroll first; then scroll highlighted paragraph into view.
   const body = overlay.querySelector('.detail-body');
   body.scrollTop = 0;
-  const highlighted = document.getElementById('detail-text').querySelector('.sub-highlight');
-  if (highlighted) {
+  if (hilite >= 0) {
     // Double rAF: first frame lets the browser calculate layout after un-hiding
     // the overlay; second frame fires once layout is stable and scroll is reliable.
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        highlighted.scrollIntoView({ block: 'center', behavior: 'instant' });
+        const el = document.getElementById('detail-text').querySelector('.sub-highlight');
+        if (el) el.scrollIntoView({ block: 'center', behavior: 'instant' });
       });
     });
   }
@@ -342,32 +345,85 @@ function closeDetail() {
   document.getElementById('search-input').focus();
 }
 
-function formatSectionText(text, sub) {
-  if (!text) return '<p>(No text available)</p>';
-
+/**
+ * Splits raw section text into an array of escaped, normalized paragraphs.
+ * Inserts paragraph breaks before subsection markers (a), (b), (1) etc.
+ * that follow sentence-ending punctuation, avoiding false-splits on
+ * mid-sentence references like "subdivision (a) of this section".
+ */
+function splitSectionText(text) {
+  if (!text) return ['(No text available)'];
   let t = escapeHtml(text);
-
-  // Normalize non-breaking spaces (U+00A0) — leginfo pages use these after
-  // subdivision markers, which would otherwise prevent the split regex matching.
+  // Normalize non-breaking spaces — leginfo uses U+00A0 after subdivision markers.
   t = t.replace(/\u00a0/g, ' ');
-
-  // Insert a newline before each subsection/subdivision marker that follows
-  // sentence-ending punctuation (. ! ; :).  Using punctuation as the trigger
-  // avoids false-splits on mid-sentence references like "subdivision (a) of…".
-  // Handles single letters (a)-(z)/(A)-(Z), double letters (aa)/(bb), 1-3 digit numbers.
+  // Insert newline before subsection markers following sentence-end punctuation.
   t = t.replace(/([.!;:])\s+(\([a-zA-Z]{1,2}\)|\(\d{1,3}\))[\s\u00a0]/g, '$1\n$2 ');
+  return t.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+}
 
-  const subRe = sub ? new RegExp('^\\(' + sub + '\\)', 'i') : null;
+/**
+ * Finds the paragraph index for a nested subsection path.
+ *
+ * CA legal code text doesn't repeat parent markers — "(b)(2)(A)" appears as
+ * separate "(2)" and "(A)" paragraphs following a "(b)" paragraph, not as
+ * the literal string "(b)(2)(A)".
+ *
+ * Algorithm: walk each level sequentially — find "(b)", then find the next
+ * "(2)" after it, then find the next "(A)" after that.  A scope fence prevents
+ * the search from drifting past sibling sections: when looking for "(2)" inside
+ * "(b)", the search stops if it encounters another same-type marker (e.g. "(c)")
+ * before finding "(2)".  When the target level isn't found (or is out of scope),
+ * the function returns the index of the deepest level that was successfully
+ * reached, so "(b)(1)" falls back to highlighting "(b)" when a standalone "(1)"
+ * paragraph isn't found under (b) (e.g. because "(b) (1) text" is one paragraph).
+ *
+ * @param {string[]} paras  - paragraph array from splitSectionText
+ * @param {string[]} levels - e.g. ['b','2','a'] from "(b)(2)(A)"
+ * @returns {number} paragraph index to highlight, or -1 if nothing found
+ */
+function findSubParagraph(paras, levels) {
+  let start  = 0;
+  let target = -1;
 
-  return t
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line.length > 0)
-    .map(line => {
-      if (subRe && subRe.test(line)) return `<p class="sub-highlight">${line}</p>`;
-      return `<p>${line}</p>`;
-    })
-    .join('');
+  for (let lvlIdx = 0; lvlIdx < levels.length; lvlIdx++) {
+    const lvl = levels[lvlIdx];
+    const re  = new RegExp('^\\(' + lvl + '\\)', 'i');
+
+    // Build a scope fence from the parent paragraph's leading marker type.
+    // When searching for a child level, stop if we hit a paragraph that starts
+    // with a same-type marker as the parent (i.e. we've left the parent's scope).
+    let fence = null;
+    if (lvlIdx > 0 && target >= 0) {
+      const p = paras[target];
+      if      (/^\([a-z]\)/ .test(p)) fence = /^\([a-z]{1,2}\)/;   // lowercase parent → stop at next lowercase
+      else if (/^\(\d/      .test(p)) fence = /^\(\d{1,3}\)/;       // number parent    → stop at next number
+      else if (/^\([A-Z]\)/ .test(p)) fence = /^\([A-Z]{1,2}\)/;    // uppercase parent → stop at next uppercase
+    }
+
+    let found = false;
+    for (let i = start; i < paras.length; i++) {
+      // If this paragraph starts with a same-type sibling of the parent, we've
+      // left the parent's scope — stop searching (don't break outer loop yet,
+      // just fail this level so we fall back to the previous target).
+      if (fence && fence.test(paras[i]) && !re.test(paras[i])) break;
+      if (re.test(paras[i])) {
+        target = i;
+        start  = i + 1;
+        found  = true;
+        break;
+      }
+    }
+    if (!found) break;  // keep target at deepest level found so far
+  }
+
+  return target;
+}
+
+/** Renders a paragraph array as HTML, highlighting one paragraph by index. */
+function renderParas(paras, hiliteIdx) {
+  return paras.map((p, i) =>
+    i === hiliteIdx ? `<p class="sub-highlight">${p}</p>` : `<p>${p}</p>`
+  ).join('');
 }
 
 // ── No-results / live lookup ──────────────────────────────
