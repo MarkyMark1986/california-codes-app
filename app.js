@@ -15,7 +15,7 @@ const State = {
 const MAX_RENDER = 200; // cap DOM nodes; prompt user to refine past this
 
 // Code mappings
-const CODE_TO_UI   = { PEN: 'PC', VEH: 'VC', HSC: 'H&S', BPC: 'B&P', EMC: 'EMC', WIC: 'WI' };
+const CODE_TO_UI   = { PEN: 'PC', VEH: 'VC', HSC: 'H&S', BPC: 'B&P', EMC: 'EMC', WIC: 'WI', CCR: 'CALCRIM' };
 const CLASS_LABEL  = {
   'felony':             'Felony',
   'misdemeanor':        'Misd.',
@@ -245,7 +245,73 @@ const CODE_ALIASES = {
   'vc': 'VEH', 'veh': 'VEH', 'vehicle': 'VEH',
   'hs': 'HSC', 'h&s': 'HSC', 'hsc': 'HSC', 'health': 'HSC', 'has': 'HSC',
   'bp': 'BPC', 'b&p': 'BPC', 'bpc': 'BPC', 'business': 'BPC',
-  'wi': 'WIC', 'wic': 'WIC', 'welfare': 'WIC'
+  'wi': 'WIC', 'wic': 'WIC', 'welfare': 'WIC',
+  'ccr': 'CCR', 'calcrim': 'CCR', 'jury': 'CCR'
+};
+
+// CalCrim instruction number lookup: "CODE-section" → CalCrim instruction number
+// Auto-generated from CALCRIM 2026 title citations + manual additions
+const CALCRIM_MAP = {
+  'BPC-25662': '2960', 'BPC-4326': '2412',
+  'HSC-11350': '2304', 'HSC-11350.5': '2306', 'HSC-11352': '2300',
+  'HSC-11353': '2380', 'HSC-11355': '2315', 'HSC-11357': '2375',
+  'HSC-11358': '2370', 'HSC-11359': '2352', 'HSC-11360': '2351',
+  'HSC-11361': '2390', 'HSC-11362.1': '3415', 'HSC-11362.5': '3412',
+  'HSC-11364': '2410', 'HSC-11365': '2401', 'HSC-11366': '2440',
+  'HSC-11368': '2320', 'HSC-11379.6': '2330', 'HSC-11379.8': '3201',
+  'HSC-11380': '2383', 'HSC-11383.5': '2337', 'HSC-11395': '2307',
+  'HSC-11550': '2400',
+  'PEN-118': '2640', 'PEN-136.1': '2622', 'PEN-137': '2610',
+  'PEN-138': '2611', 'PEN-140': '2624', 'PEN-141': '2630',
+  'PEN-148': '2656', 'PEN-149': '908', 'PEN-166': '2700',
+  'PEN-169': '2680', 'PEN-182': '415', 'PEN-186.10': '2997',
+  'PEN-186.22': '1400', 'PEN-187': '520', 'PEN-189': '521',
+  'PEN-190': '524', 'PEN-190.03': '523', 'PEN-190.2': '700',
+  'PEN-191.5': '590', 'PEN-192': '572', 'PEN-203': '801',
+  'PEN-205': '800', 'PEN-206': '810', 'PEN-207': '1200',
+  'PEN-209': '1203', 'PEN-21': '460', 'PEN-210.5': '1241',
+  'PEN-211': '1600', 'PEN-212.5': '1602', 'PEN-213': '1601',
+  'PEN-215': '1650', 'PEN-220': '891', 'PEN-236': '1240',
+  'PEN-236.1': '1243', 'PEN-240': '861', 'PEN-242': '925',
+  'PEN-243.4': '938', 'PEN-244': '877', 'PEN-245': '875',
+  'PEN-246': '965', 'PEN-25': '3450', 'PEN-261': '1000',
+  'PEN-261.5': '1070', 'PEN-264.1': '1001', 'PEN-266': '1150',
+  'PEN-269': '1123', 'PEN-270': '2981', 'PEN-272': '2980',
+  'PEN-273': '820', 'PEN-273.5': '840', 'PEN-277': '1250',
+  'PEN-285': '1180', 'PEN-286': '1030', 'PEN-287': '1015',
+  'PEN-288': '1060', 'PEN-288.3': '1124', 'PEN-288.4': '1125',
+  'PEN-288.5': '1120', 'PEN-289': '1045', 'PEN-290': '1170',
+  'PEN-311.4': '1144', 'PEN-311.6': '1143', 'PEN-314': '1160',
+  'PEN-32': '440', 'PEN-337': '2990', 'PEN-368': '831',
+  'PEN-399': '2950', 'PEN-403': '2681', 'PEN-404': '2683',
+  'PEN-404.6': '2682', 'PEN-406': '2684', 'PEN-407': '2685',
+  'PEN-415': '2689', 'PEN-416': '2687', 'PEN-417': '981',
+  'PEN-417.4': '985', 'PEN-417.8': '982', 'PEN-422': '1300',
+  'PEN-422.7': '1355', 'PEN-451': '1501', 'PEN-451.5': '1500',
+  'PEN-452': '1530', 'PEN-453': '1550', 'PEN-455': '1520',
+  'PEN-459': '1700', 'PEN-459.5': '1703', 'PEN-460': '1701',
+  'PEN-465': '1705', 'PEN-466': '1704', 'PEN-470': '1900',
+  'PEN-475': '1930', 'PEN-476': '1970', 'PEN-480': '1933',
+  'PEN-484': '1800', 'PEN-486': '1801', 'PEN-487': '1803',
+  'PEN-490.4': '1808', 'PEN-496': '1750', 'PEN-499': '1822',
+  'PEN-511': '1863', 'PEN-518': '1830', 'PEN-522': '1832',
+  'PEN-523': '1831', 'PEN-529': '2044', 'PEN-530': '2045',
+  'PEN-530.5': '2041', 'PEN-550': '2000', 'PEN-591': '2902',
+  'PEN-594': '2900', 'PEN-597': '2953', 'PEN-601': '2929',
+  'PEN-602': '2930', 'PEN-602.5': '2932', 'PEN-632': '3010',
+  'PEN-646.9': '1301', 'PEN-647': '1153', 'PEN-647.6': '1121',
+  'PEN-66': '2600', 'PEN-67': '2600', 'PEN-67.5': '2601',
+  'PEN-68': '2603', 'PEN-69': '2652', 'PEN-76': '2650',
+  'PEN-666': '1850', 'PEN-12022': '3115', 'PEN-12022.5': '3147',
+  'PEN-12022.53': '1402', 'PEN-12022.7': '3161',
+  'PEN-1025': '3100', 'PEN-1026.2': '3452', 'PEN-1026.5': '3453',
+  'PEN-1320': '3002', 'PEN-1320.5': '3001', 'PEN-4502': '2745',
+  'PEN-25400': '2520', 'PEN-25800': '2590', 'PEN-25850': '2530',
+  'VEH-10801': '1752', 'VEH-10851': '1820', 'VEH-12500': '2221',
+  'VEH-12951': '2222', 'VEH-20001': '2141', 'VEH-23103': '2200',
+  'VEH-23105': '3223', 'VEH-23109': '2201', 'VEH-23140': '2113',
+  'VEH-23152': '2110', 'VEH-23153': '2100', 'VEH-2800.1': '2181',
+  'WIC-1800': '3458', 'WIC-6605': '3454A',
 };
 
 // ── Bootstrap ────────────────────────────────────────────
@@ -271,7 +337,7 @@ function registerServiceWorker() {
 // ── Data loading ─────────────────────────────────────────
 async function loadData() {
   try {
-    const response = await fetch('./ca_codes.json?v=6');
+    const response = await fetch('./ca_codes.json?v=7');
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const raw = await response.json();
 
@@ -498,10 +564,13 @@ function renderResults(sections) {
     const label   = CLASS_LABEL[s.offenseClass] || '';
     const preview = escapeHtml((s.text || '').substring(0, 140));
     const hasChapter = s.chapterInfo && s.chapterInfo.trim();
+    const sectionRef = s.code === 'CCR'
+      ? `CALCRIM&nbsp;${s.sectionNumber}`
+      : `${uiCode}&nbsp;§${s.sectionNumber}`;
 
     art.innerHTML = `
       <div class="card-top">
-        <span class="section-ref">${uiCode}&nbsp;§${s.sectionNumber}</span>
+        <span class="section-ref">${sectionRef}</span>
         <span class="offense-badge badge-${s.offenseClass.replace('/', '-')}">${label}</span>
       </div>
       ${hasChapter ? `<p class="chapter-tag">${escapeHtml(s.chapterInfo)}</p>` : ''}
@@ -530,18 +599,48 @@ function openDetail(sectionId) {
   const uiCode = CODE_TO_UI[s.code] || s.code;
   const label  = CLASS_LABEL[s.offenseClass] || '';
 
-  document.getElementById('detail-title').textContent = `${uiCode} §${s.sectionNumber}`;
+  if (s.code === 'CCR') {
+    document.getElementById('detail-title').textContent = `CALCRIM ${s.sectionNumber}`;
+  } else {
+    document.getElementById('detail-title').textContent = `${uiCode} §${s.sectionNumber}`;
+  }
 
   const badge = document.getElementById('detail-badge');
   badge.textContent = label;
   badge.className = `offense-badge badge-${s.offenseClass.replace('/', '-')}`;
 
-  // Breadcrumb: Part › Chapter
-  const crumbParts = [s.partInfo, s.chapterInfo].filter(Boolean);
-  document.getElementById('detail-breadcrumb').textContent = crumbParts.join(' › ');
+  // Breadcrumb: Part › Chapter  (for CCR show code citation instead)
+  if (s.code === 'CCR' && s.codeCitation) {
+    document.getElementById('detail-breadcrumb').textContent = s.codeCitation;
+  } else {
+    const crumbParts = [s.partInfo, s.chapterInfo].filter(Boolean);
+    document.getElementById('detail-breadcrumb').textContent = crumbParts.join(' › ');
+  }
 
-  const sub = State.pendingSub;   // array of levels like ['b','2','a'], or null
+  const sub = State.pendingSub;
   State.pendingSub = null;
+
+  // CalCrim panel: shown for non-CCR sections that have a CalCrim mapping
+  const cPanel = document.getElementById('calcrim-panel');
+  const cViewBtn = document.getElementById('calcrim-view-btn');
+  if (s.code !== 'CCR') {
+    const mapKey   = `${s.code}-${s.sectionNumber}`;
+    const ccrNum   = CALCRIM_MAP[mapKey];
+    const ccrSec   = ccrNum ? State.allSections.find(sec => sec.code === 'CCR' && sec.sectionNumber === ccrNum) : null;
+    if (ccrSec) {
+      document.getElementById('calcrim-num').textContent   = `No. ${ccrSec.sectionNumber}`;
+      document.getElementById('calcrim-title').textContent = ccrSec.title.replace(/\s*\(.*?\)\s*$/, '');
+      // Show first 3 elements from the instruction text
+      const lines = ccrSec.text.split(/(?<=\.)\s+(?=[0-9A-Z\[])/).slice(0, 4).join(' ');
+      document.getElementById('calcrim-elements').textContent = lines.length > 400 ? lines.slice(0, 400) + '…' : lines;
+      cViewBtn.dataset.ccrId = ccrSec.id;
+      cPanel.hidden = false;
+    } else {
+      cPanel.hidden = true;
+    }
+  } else {
+    cPanel.hidden = true;
+  }
 
   // Split text into paragraphs, find the target paragraph, then render.
   const paras   = splitSectionText(s.text);
@@ -549,7 +648,10 @@ function openDetail(sectionId) {
   document.getElementById('detail-text').innerHTML = renderParas(paras, hilite);
 
   const link = document.getElementById('source-link');
-  if (s.code === 'EMC') {
+  if (s.code === 'CCR') {
+    link.href = 'https://courts.ca.gov/system/files/file/calcrim-2026.pdf';
+    link.textContent = 'View CALCRIM 2026 (Judicial Council PDF) ↗';
+  } else if (s.code === 'EMC') {
     link.href = s.sourceUrl || 'https://codelibrary.amlegal.com/codes/eureka/latest/overview';
     link.textContent = 'View on codelibrary.amlegal.com ↗';
   } else {
@@ -673,7 +775,7 @@ function showNoResults(query, parsed) {
 
   if (State.isOnline && parsed.type === 'section') {
     const lawCode = parsed.code || inferCode(parsed.num);
-    if (lawCode && lawCode !== 'EMC' && lawCode !== 'WIC') {
+    if (lawCode && lawCode !== 'EMC' && lawCode !== 'WIC' && lawCode !== 'CCR') {
       const url = `https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml`
         + `?sectionNum=${encodeURIComponent(parsed.num)}.&lawCode=${lawCode}`;
       const display = `${CODE_TO_UI[lawCode] || lawCode} §${parsed.num}`;
@@ -844,6 +946,11 @@ function setupDetailListeners() {
 
   document.getElementById('back-btn').addEventListener('click', () => {
     history.back();
+  });
+
+  document.getElementById('calcrim-view-btn').addEventListener('click', e => {
+    const ccrId = e.currentTarget.dataset.ccrId;
+    if (ccrId) openDetail(ccrId);
   });
 
   // Back button / Android back gesture

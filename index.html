@@ -58,6 +58,7 @@
       <button class="filter-pill" data-code="BPC">B&amp;P</button>
       <button class="filter-pill" data-code="EMC">EMC</button>
       <button class="filter-pill" data-code="WIC">WI</button>
+      <button class="filter-pill" data-code="CCR">CALCRIM</button>
     </div>
   </header>
 
@@ -105,6 +106,15 @@
 
     <div class="detail-body">
       <p id="detail-breadcrumb" class="detail-breadcrumb"></p>
+      <div id="calcrim-panel" hidden class="calcrim-panel">
+        <div class="calcrim-panel-header">
+          <span class="calcrim-badge">CALCRIM</span>
+          <span id="calcrim-num" class="calcrim-num"></span>
+          <span id="calcrim-title" class="calcrim-title"></span>
+        </div>
+        <div id="calcrim-elements" class="calcrim-elements"></div>
+        <button id="calcrim-view-btn" class="calcrim-view-btn">View full instruction ›</button>
+      </div>
       <div id="detail-text" class="detail-text"></div>
       <div class="detail-footer">
         <a id="source-link" class="source-link" href="#" target="_blank" rel="noopener noreferrer">

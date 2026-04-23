@@ -418,6 +418,62 @@ body {
   font-weight: 500;
 }
 
+/* ── CalCrim panel (shown in code-section detail when a CalCrim instruction exists) ── */
+.calcrim-panel {
+  background: #F0FDFA;
+  border: 1px solid #99F6E4;
+  border-left: 4px solid #0D9488;
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+}
+.calcrim-panel-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.calcrim-badge {
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: #fff;
+  background: #0D9488;
+  border-radius: 3px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+.calcrim-num {
+  font-weight: 700;
+  font-size: .9rem;
+  color: #0D9488;
+  white-space: nowrap;
+}
+.calcrim-title {
+  font-size: .88rem;
+  color: #134E4A;
+  font-weight: 500;
+}
+.calcrim-elements {
+  font-size: .82rem;
+  color: #1F2937;
+  line-height: 1.5;
+  margin-bottom: 10px;
+  white-space: pre-wrap;
+}
+.calcrim-view-btn {
+  font-size: .8rem;
+  color: #0D9488;
+  background: none;
+  border: 1px solid #0D9488;
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.calcrim-view-btn:hover { background: #CCFBF1; }
+
 .detail-footer {
   margin-top: 28px;
   padding-top: 16px;
