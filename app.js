@@ -359,6 +359,7 @@ async function loadData() {
     State.filteredSections = State.allSections;
     renderResults([]);
     updateCount(State.allSections.length, State.allSections.length);
+    document.getElementById('welcome-panel').hidden = false;
 
   } catch (err) {
     console.error('Failed to load ca_codes.json:', err);
@@ -453,6 +454,7 @@ function runSearch() {
   if (!query) {
     // If a category is active, show its sections (still filtered by code tab)
     if (State.activeCategory) {
+      document.getElementById('welcome-panel').hidden = true;
       const catSections = getCategorySections(State.activeCategory.id, pool);
       State.filteredSections = catSections;
       hideNoResults();
@@ -464,8 +466,14 @@ function runSearch() {
     renderResults([]);
     updateCount(pool.length, pool.length);
     hideNoResults();
+    // Show welcome panel when idle (no query, no category)
+    if (State.allSections.length > 0) {
+      document.getElementById('welcome-panel').hidden = false;
+    }
     return;
   }
+
+  document.getElementById('welcome-panel').hidden = true;
 
   const parsed = parseQuery(query);
   let results  = [];

@@ -274,6 +274,71 @@ body {
 .badge-infraction        { background: var(--badge-infr);     color: #fff; }
 .badge-unknown           { display: none; }
 
+/* ── Welcome / help panel ──────────────────────────────── */
+#welcome-panel {
+  margin: 16px 0 8px;
+  padding: 16px;
+  background: var(--card);
+  border-radius: var(--radius);
+  border-left: 4px solid var(--navy);
+  box-shadow: var(--shadow);
+}
+#welcome-panel[hidden] { display: none; }
+
+.welcome-intro {
+  font-size: .88rem;
+  color: var(--text-2);
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+.welcome-heading {
+  font-size: .82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--navy);
+  margin-bottom: 8px;
+}
+.welcome-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.welcome-list li {
+  font-size: .88rem;
+  color: var(--text-2);
+  line-height: 1.4;
+  padding-left: 1.1em;
+  position: relative;
+}
+.welcome-list li::before {
+  content: '›';
+  position: absolute;
+  left: 0;
+  color: var(--navy);
+  font-weight: 700;
+}
+.welcome-example {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .82rem;
+  background: #EEF1F6;
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--navy-dark);
+  white-space: nowrap;
+}
+.welcome-footer {
+  font-size: .8rem;
+  color: var(--text-3);
+  line-height: 1.45;
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
 /* ── No-results / live lookup ──────────────────────────── */
 #no-results {
   margin-top: 24px;
