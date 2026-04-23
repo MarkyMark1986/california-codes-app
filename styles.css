@@ -139,26 +139,22 @@ body {
 /* Filter pills */
 .filter-row {
   display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  flex-wrap: wrap;
+  gap: 5px;
   padding-bottom: 2px;
 }
-.filter-row::-webkit-scrollbar { display: none; }
 
 .filter-pill {
-  height: 32px;
-  padding: 0 14px;
+  height: 28px;
+  padding: 0 10px;
   border: 2px solid rgba(255,255,255,.3);
   border-radius: 999px;
   background: transparent;
-  color: rgba(255,255,255,.8);
-  font-size: .875rem;
+  color: rgba(255,255,255,.85);
+  font-size: .78rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  flex-shrink: 0;
   transition: background .15s, border-color .15s, color .15s;
 }
 .filter-pill:hover { border-color: rgba(255,255,255,.6); color: #fff; }
