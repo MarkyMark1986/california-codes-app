@@ -474,6 +474,29 @@ body {
 }
 .calcrim-view-btn:hover { background: #CCFBF1; }
 
+/* CalCrim full-instruction text formatting */
+.calcrim-element {
+  padding-left: 1.5em;
+  text-indent: -1.5em;
+  margin-bottom: 6px;
+}
+.calcrim-connector {
+  font-weight: 700;
+  color: #0D9488;
+  text-align: center;
+  margin: 4px 0;
+  font-size: .85rem;
+  letter-spacing: .04em;
+}
+.calcrim-note {
+  font-style: italic;
+  color: var(--text-3);
+  font-size: .85rem;
+  margin-top: 8px;
+  border-left: 3px solid #D1D5DB;
+  padding-left: 10px;
+}
+
 .detail-footer {
   margin-top: 28px;
   padding-top: 16px;

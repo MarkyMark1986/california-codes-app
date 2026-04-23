@@ -642,10 +642,14 @@ function openDetail(sectionId) {
     cPanel.hidden = true;
   }
 
-  // Split text into paragraphs, find the target paragraph, then render.
-  const paras   = splitSectionText(s.text);
-  const hilite  = (sub && sub.length) ? findSubParagraph(paras, sub) : -1;
-  document.getElementById('detail-text').innerHTML = renderParas(paras, hilite);
+  // Split text into paragraphs and render — CalCrim uses its own formatter.
+  if (s.code === 'CCR') {
+    document.getElementById('detail-text').innerHTML = renderCalcrimParas(splitCalcrimText(s.text));
+  } else {
+    const paras  = splitSectionText(s.text);
+    const hilite = (sub && sub.length) ? findSubParagraph(paras, sub) : -1;
+    document.getElementById('detail-text').innerHTML = renderParas(paras, hilite);
+  }
 
   const link = document.getElementById('source-link');
   if (s.code === 'CCR') {
@@ -766,6 +770,38 @@ function renderParas(paras, hiliteIdx) {
   return paras.map((p, i) =>
     i === hiliteIdx ? `<p class="sub-highlight">${p}</p>` : `<p>${p}</p>`
   ).join('');
+}
+
+/** Splits CalCrim instruction text into formatted paragraphs. */
+function splitCalcrimText(text) {
+  if (!text) return ['(No text available)'];
+  let t = escapeHtml(text).replace(/\u00a0/g, ' ');
+  // Break before numbered/lettered elements after : or ;
+  t = t.replace(/([;:])\s+(\[?(?:\d{1,2}[A-Z]?)\.\s)/g, '$1\n$2');
+  // Break before "AND N." or "OR N." connectors
+  t = t.replace(/\s+((?:AND|OR)\s+\d{1,2}[A-Z]?\.\s)/g, '\n$1');
+  // Break standalone [AND] / [OR] connectors onto their own lines
+  t = t.replace(/\s+(\[(?:AND|OR)\])\s*/g, '\n$1\n');
+  // Break before optional bracketed paragraphs after ] or .
+  t = t.replace(/([.\]])\s+(\[[A-Z][a-z])/g, '$1\n$2');
+  // Break before judge notes <...>
+  t = t.replace(/\s+(&lt;[A-Z])/g, '\n$1');
+  // Break before definition starters after a sentence end
+  t = t.replace(/\.\s+([A-Z][a-z]{2,15} (?:means|is defined|refers to|includes)\b)/g, '.\n$1');
+  return t.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+}
+
+/** Renders CalCrim paragraphs with semantic classes. */
+function renderCalcrimParas(paras) {
+  return paras.map(p => {
+    if (/^\[(?:AND|OR)\]$/.test(p))
+      return `<p class="calcrim-connector">${p}</p>`;
+    if (/^(?:(?:AND|OR)\s+)?\[?\d{1,2}[A-Z]?\./.test(p))
+      return `<p class="calcrim-element">${p}</p>`;
+    if (/^&lt;[A-Z]/.test(p))
+      return `<p class="calcrim-note">${p}</p>`;
+    return `<p>${p}</p>`;
+  }).join('');
 }
 
 // ── No-results / live lookup ──────────────────────────────
