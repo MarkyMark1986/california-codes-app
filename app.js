@@ -56,7 +56,7 @@ const CATEGORIES = [
   },
   {
     id: 'property', label: 'Property Crimes',
-    sub: 'burglary · theft · arson · vandalism',
+    sub: 'burglary · theft · arson · vandalism · graffiti',
     accent: '#B45309',
     ranges: [
       { code: 'PEN', min: 451,   max: 457.9  },  // arson
@@ -64,6 +64,7 @@ const CATEGORIES = [
       { code: 'PEN', min: 484,   max: 502.9  },  // theft (petty & grand), embezzlement
       { code: 'PEN', min: 594,   max: 598.9  },  // vandalism, malicious mischief
       { code: 'PEN', min: 666,   max: 666.9  },  // petty theft with prior
+      { code: 'EMC', min: 131.1, max: 131.29 },  // graffiti
     ]
   },
   {
@@ -73,11 +74,12 @@ const CATEGORIES = [
     ranges: [
       { code: 'HSC', min: 11053, max: 11058.9 },  // controlled substance schedules
       { code: 'HSC', min: 11150, max: 11165.9 },  // prescriptions
-      { code: 'HSC', min: 11350, max: 11395.9 },  // narcotics — possession & sale
+      { code: 'HSC', min: 11350, max: 11395.9 },  // narcotics - possession & sale
       { code: 'HSC', min: 11364, max: 11382.9 },  // paraphernalia, stimulants
       { code: 'HSC', min: 11550, max: 11552.9 },  // under influence
       { code: 'BPC', min: 4060,  max: 4068.9  },  // prescription regulations
       { code: 'BPC', min: 4140,  max: 4145.9  },  // hypodermic devices
+      { code: 'EMC', min: 94.53, max: 94.54   },  // syringes / sharps
     ]
   },
   {
@@ -85,13 +87,14 @@ const CATEGORIES = [
     sub: 'firearms · brandishing · prohibited persons · illegal weapons',
     accent: '#374151',
     ranges: [
-      { code: 'PEN', min: 245,   max: 247.9  },  // assault with deadly weapon / shooting
-      { code: 'PEN', min: 417,   max: 418.9  },  // brandishing
-      { code: 'PEN', min: 25100, max: 26915.9},  // carry, possession, dealer regs
-      { code: 'PEN', min: 29800, max: 29830.9},  // prohibited persons with firearms
-      { code: 'PEN', min: 30305, max: 30306.9},  // ammunition restrictions
-      { code: 'PEN', min: 32625, max: 32625.9},  // machine guns
-      { code: 'PEN', min: 33215, max: 33215.9},  // short-barreled rifles/shotguns
+      { code: 'PEN', min: 245,   max: 247.9   },  // assault with deadly weapon / shooting
+      { code: 'PEN', min: 417,   max: 418.9   },  // brandishing
+      { code: 'PEN', min: 25100, max: 26915.9 },  // carry, possession, dealer regs
+      { code: 'PEN', min: 29800, max: 29830.9 },  // prohibited persons with firearms
+      { code: 'PEN', min: 30305, max: 30306.9 },  // ammunition restrictions
+      { code: 'PEN', min: 32625, max: 32625.9 },  // machine guns
+      { code: 'PEN', min: 33215, max: 33215.9 },  // short-barreled rifles/shotguns
+      { code: 'EMC', min: 133.0, max: 133.9999},  // municipal weapons regulations
     ]
   },
   {
@@ -100,7 +103,7 @@ const CATEGORIES = [
     accent: '#1D4ED8',
     ranges: [
       { code: 'VEH', min: 23103, max: 23115.9 },  // reckless driving
-      { code: 'VEH', min: 23136, max: 23249.9 },  // DUI — all provisions
+      { code: 'VEH', min: 23136, max: 23249.9 },  // DUI - all provisions
       { code: 'VEH', min: 23550, max: 23566.9 },  // DUI priors / repeat offenders
       { code: 'VEH', min: 31301, max: 31305.9 },  // open container
     ]
@@ -140,9 +143,10 @@ const CATEGORIES = [
     accent: '#1E3A5F',
     ranges: [
       { code: 'VEH', min: 10750, max: 10757.9 },  // vehicle identification
-      { code: 'VEH', min: 14600, max: 14612.9 },  // suspended / unlicensed — impound
+      { code: 'VEH', min: 14600, max: 14612.9 },  // suspended / unlicensed - impound
       { code: 'VEH', min: 22650, max: 22712.9 },  // vehicle removal from highway
       { code: 'VEH', min: 22850, max: 22856.9 },  // impound authority
+      { code: 'EMC', min: 90.0,  max: 90.9999 },  // abandoned / stored vehicles
     ]
   },
   {
@@ -150,25 +154,33 @@ const CATEGORIES = [
     sub: 'forgery · identity theft · extortion · false pretenses',
     accent: '#6B21A8',
     ranges: [
-      { code: 'PEN', min: 470,   max: 483.9  },  // forgery, counterfeiting
-      { code: 'PEN', min: 484,   max: 502.9  },  // theft by fraud, embezzlement
-      { code: 'PEN', min: 518,   max: 527.9  },  // extortion, blackmail
-      { code: 'PEN', min: 530,   max: 538.9  },  // identity theft, impersonation
-      { code: 'BPC', min: 17200, max: 17210.9 }, // unfair business practices
-      { code: 'BPC', min: 17500, max: 17510.9 }, // false advertising
+      { code: 'PEN', min: 470,   max: 483.9   },  // forgery, counterfeiting
+      { code: 'PEN', min: 484,   max: 502.9   },  // theft by fraud, embezzlement
+      { code: 'PEN', min: 518,   max: 527.9   },  // extortion, blackmail
+      { code: 'PEN', min: 530,   max: 538.9   },  // identity theft, impersonation
+      { code: 'BPC', min: 17200, max: 17210.9 },  // unfair business practices
+      { code: 'BPC', min: 17500, max: 17510.9 },  // false advertising
     ]
   },
   {
-    id: 'public-order', label: 'Public Order',
-    sub: 'disorderly conduct · trespass · riot · disturbing peace',
+    id: 'public-order', label: 'Public Order & Nuisance',
+    sub: 'disorderly conduct · trespass · riot · noise · disturbing peace',
     accent: '#0F766E',
     ranges: [
-      { code: 'PEN', min: 370,   max: 375.9  },  // public nuisance
-      { code: 'PEN', min: 404,   max: 420.9  },  // riot, unlawful assembly
-      { code: 'PEN', min: 594,   max: 600.9  },  // vandalism / interference
-      { code: 'PEN', min: 602,   max: 603.9  },  // trespass
-      { code: 'PEN', min: 626,   max: 632.9  },  // schools, eavesdropping
-      { code: 'PEN', min: 647,   max: 651.9  },  // disorderly conduct
+      { code: 'PEN', min: 370,   max: 375.9   },  // public nuisance
+      { code: 'PEN', min: 404,   max: 420.9   },  // riot, unlawful assembly
+      { code: 'PEN', min: 594,   max: 600.9   },  // vandalism / interference
+      { code: 'PEN', min: 602,   max: 603.9   },  // trespass
+      { code: 'PEN', min: 626,   max: 632.9   },  // schools, eavesdropping
+      { code: 'PEN', min: 647,   max: 651.9   },  // disorderly conduct
+      { code: 'EMC', min: 94.02, max: 94.03   },  // noise / sound amplification
+      { code: 'EMC', min: 130.0, max: 130.9999},  // public peace / disturbance
+      { code: 'EMC', min: 131.3, max: 131.9999},  // trespass / private property
+      { code: 'EMC', min: 132.15,max: 132.9999},  // prohibited public conduct
+      { code: 'EMC', min: 134.0, max: 134.9999},  // chronic nuisance
+      { code: 'WIC', min: 625,   max: 625.9   },  // minor found in public - curfew
+      { code: 'WIC', min: 628,   max: 628.9   },  // minor - peace officer contact
+      { code: 'WIC', min: 777,   max: 777.9   },  // minor - violation of court order
     ]
   },
   {
@@ -185,15 +197,44 @@ const CATEGORIES = [
   },
   {
     id: 'children', label: 'Crimes Against Children',
-    sub: 'abuse · neglect · lewd acts · child abduction',
+    sub: 'abuse · neglect · lewd acts · child abduction · dependency',
     accent: '#7C3AED',
     ranges: [
       { code: 'PEN', min: 270,   max: 273.4  },  // child neglect, contributing
       { code: 'PEN', min: 273.4, max: 273.9  },  // child abuse / endangerment
       { code: 'PEN', min: 278,   max: 280.9  },  // child abduction / custody
       { code: 'PEN', min: 288,   max: 289.9  },  // lewd acts, sexual abuse of child
-      { code: 'PEN', min: 311,   max: 313.9  },  // obscene material — minors
+      { code: 'PEN', min: 311,   max: 313.9  },  // obscene material - minors
       { code: 'PEN', min: 647.6, max: 647.69 },  // annoying / molesting child
+      { code: 'WIC', min: 300,   max: 308.9  },  // dependency - abuse & neglect
+    ]
+  },
+  {
+    id: 'mental-health', label: 'Mental Health Holds',
+    sub: 'WIC 5150 · 72-hour hold · 14-day hold · conservatorship',
+    accent: '#0D9488',
+    ranges: [
+      { code: 'WIC', min: 5150,  max: 5152.9 },  // 5150-5152: 72-hour evaluation & treatment
+      { code: 'WIC', min: 5250,  max: 5259.9 },  // 5250: 14-day intensive treatment hold
+      { code: 'WIC', min: 5300,  max: 5309.9 },  // 5300: 180-day post-cert treatment
+    ]
+  },
+  {
+    id: 'juvenile', label: 'Juvenile Offenses',
+    sub: 'delinquency · status offenses · probation violations · fitness',
+    accent: '#7E22CE',
+    ranges: [
+      { code: 'WIC', min: 601,   max: 602.9  },  // 601 status offenses; 602 delinquency
+      { code: 'WIC', min: 707,   max: 707.9  },  // fitness hearing - adult prosecution
+      { code: 'EMC', min: 130.04,max: 130.08 },  // curfew / youth in public
+    ]
+  },
+  {
+    id: 'animal', label: 'Animal Control',
+    sub: 'licensing · dangerous animals · cruelty · at-large',
+    accent: '#92400E',
+    ranges: [
+      { code: 'EMC', min: 91.0,  max: 91.9999},  // animal control ordinances
     ]
   },
 ];
