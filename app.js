@@ -981,7 +981,8 @@ function setupDetailListeners() {
   });
 
   document.getElementById('back-btn').addEventListener('click', () => {
-    history.back();
+    closeDetail();
+    if (history.state?.detail) history.back();
   });
 
   document.getElementById('calcrim-view-btn').addEventListener('click', e => {
