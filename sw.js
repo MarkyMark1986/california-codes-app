@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ca-codes-v20';
+const CACHE_NAME = 'ca-codes-v21';
 
 const PRECACHE_ASSETS = [
   './',
@@ -8,7 +8,7 @@ const PRECACHE_ASSETS = [
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  './ca_codes.json'
+  './ca_codes.json?v=7'
 ];
 
 self.addEventListener('install', event => {

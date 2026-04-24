@@ -245,6 +245,13 @@ body {
   overflow: hidden;
 }
 
+.card-title {
+  font-size: .9rem;
+  font-weight: 600;
+  color: var(--text-1);
+  line-height: 1.35;
+}
+
 .chapter-tag {
   font-size: .75rem;
   color: var(--text-3);
@@ -831,6 +838,9 @@ body {
 #fav-btn:hover { background: rgba(255,255,255,.25); color: #fff; }
 #fav-btn.fav-active { color: var(--gold); }
 #fav-btn.fav-active svg path { fill: var(--gold); stroke: var(--gold); }
+
+#favs-btn.has-favs { color: var(--gold); }
+#favs-btn.has-favs svg path { fill: currentColor; }
 
 /* Favorites overlay */
 #favs-overlay {

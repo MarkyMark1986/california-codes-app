@@ -2,6 +2,7 @@
 
 // ── State ────────────────────────────────────────────────
 const FAVORITES_KEY = 'ca-codes-favorites';
+const DATA_UPDATED  = 'April 2025';
 
 const State = {
   allSections:      [],   // flat array of all section objects
@@ -12,7 +13,11 @@ const State = {
   searchIndex:      null, // Map: keyword -> Set<sectionIndex>
   pendingSub:       null, // subsection qualifier (e.g. 'f') to highlight on next openDetail
   activeCategory:   null, // { id, label } of the currently active browse category
-  favorites:        new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]'))
+  sectionById:      new Map(), // id → section, populated after loadData
+  favorites:        (() => {
+    try { return new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]')); }
+    catch { return new Set(); }
+  })()
 };
 
 const MAX_RENDER = 200; // cap DOM nodes; prompt user to refine past this
@@ -246,9 +251,10 @@ const CATEGORIES = [
 const CODE_ALIASES = {
   'pc': 'PEN', 'pen': 'PEN', 'penal': 'PEN',
   'vc': 'VEH', 'veh': 'VEH', 'vehicle': 'VEH',
-  'hs': 'HSC', 'h&s': 'HSC', 'hsc': 'HSC', 'health': 'HSC', 'has': 'HSC',
-  'bp': 'BPC', 'b&p': 'BPC', 'bpc': 'BPC', 'business': 'BPC',
-  'wi': 'WIC', 'wic': 'WIC', 'welfare': 'WIC',
+  'hs': 'HSC', 'h&s': 'HSC', 'h/s': 'HSC', 'hsc': 'HSC', 'health': 'HSC', 'has': 'HSC',
+  'bp': 'BPC', 'b&p': 'BPC', 'b/p': 'BPC', 'bpc': 'BPC', 'business': 'BPC',
+  'wi': 'WIC', 'wic': 'WIC', 'w&i': 'WIC', 'welfare': 'WIC', 'welf': 'WIC',
+  'emc': 'EMC', 'em': 'EMC', 'eureka': 'EMC',
   'ccr': 'CCR', 'calcrim': 'CCR', 'jury': 'CCR'
 };
 
@@ -322,8 +328,10 @@ const QUICK_CODES = [
   { label: 'Crimes Against Persons', accent: '#B91C1C', items: [
     { code: 'PEN', num: '187',   display: 'PC 187',        desc: 'Murder' },
     { code: 'PEN', num: '211',   display: 'PC 211',        desc: 'Robbery' },
-    { code: 'PEN', num: '240',   display: 'PC 240/241',    desc: 'Assault' },
-    { code: 'PEN', num: '242',   display: 'PC 242/243',    desc: 'Battery' },
+    { code: 'PEN', num: '240',   display: 'PC 240',        desc: 'Assault' },
+    { code: 'PEN', num: '241',   display: 'PC 241(c)',     desc: 'Assault on peace officer',                  sub: ['c'] },
+    { code: 'PEN', num: '242',   display: 'PC 242',        desc: 'Battery' },
+    { code: 'PEN', num: '243',   display: 'PC 243(b)',     desc: 'Battery on peace officer',                  sub: ['b'] },
     { code: 'PEN', num: '245',   display: 'PC 245',        desc: 'Assault with a deadly weapon' },
     { code: 'PEN', num: '69',    display: 'PC 69',         desc: 'Obstruction / resisting executive officer' },
     { code: 'PEN', num: '243',   display: 'PC 243(e)(1)',  desc: 'Domestic battery',                          sub: ['e','1'] },
@@ -395,6 +403,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupQuickCodesListeners();
   buildQuickCodesOverlay();
   setupFavoritesListeners();
+  updateFavsHeaderBtn();
   loadData();
 });
 
@@ -423,6 +432,9 @@ async function loadData() {
       s._kwLower   = (s.keywords || '').toLowerCase();
     });
 
+    // O(1) lookup by id
+    State.sectionById = new Map(State.allSections.map(s => [s.id, s]));
+
     buildSearchIndex(State.allSections);
 
     document.getElementById('loading').hidden = true;
@@ -432,6 +444,8 @@ async function loadData() {
     renderResults([]);
     updateCount(State.allSections.length, State.allSections.length);
     document.getElementById('welcome-panel').hidden = false;
+    const dateEl = document.getElementById('data-date');
+    if (dateEl) dateEl.textContent = `Database: ${DATA_UPDATED}.`;
 
   } catch (err) {
     console.error('Failed to load ca_codes.json:', err);
@@ -645,11 +659,14 @@ function renderResults(sections) {
 
     const uiCode  = CODE_TO_UI[s.code] || s.code;
     const label   = CLASS_LABEL[s.offenseClass] || '';
-    const preview = escapeHtml((s.text || '').substring(0, 140));
+    const titleText = (s.title || '').trim();
     const hasChapter = s.chapterInfo && s.chapterInfo.trim();
     const sectionRef = s.code === 'CCR'
       ? `CALCRIM&nbsp;${s.sectionNumber}`
       : `${uiCode}&nbsp;§${s.sectionNumber}`;
+    const descHtml = titleText
+      ? `<p class="card-title">${escapeHtml(titleText)}</p>`
+      : `<p class="preview">${escapeHtml((s.text || '').substring(0, 140))}${(s.text || '').length > 140 ? '…' : ''}</p>`;
 
     art.innerHTML = `
       <div class="card-top">
@@ -657,7 +674,7 @@ function renderResults(sections) {
         <span class="offense-badge badge-${(s.offenseClass || 'unknown').replace('/', '-')}">${label}</span>
       </div>
       ${hasChapter ? `<p class="chapter-tag">${escapeHtml(s.chapterInfo)}</p>` : ''}
-      <p class="preview">${preview}${s.text.length > 140 ? '…' : ''}</p>
+      ${descHtml}
     `;
 
     frag.appendChild(art);
@@ -676,17 +693,16 @@ function renderResults(sections) {
 
 // ── Detail view ───────────────────────────────────────────
 function openDetail(sectionId, noHistory = false) {
-  const s = State.allSections.find(sec => sec.id === sectionId);
+  const s = State.sectionById.get(sectionId);
   if (!s) return;
 
   const uiCode = CODE_TO_UI[s.code] || s.code;
   const label  = CLASS_LABEL[s.offenseClass] || '';
 
-  if (s.code === 'CCR') {
-    document.getElementById('detail-title').textContent = `CALCRIM ${s.sectionNumber}`;
-  } else {
-    document.getElementById('detail-title').textContent = `${uiCode} §${s.sectionNumber}`;
-  }
+  const ref = s.code === 'CCR' ? `CALCRIM ${s.sectionNumber}` : `${uiCode} §${s.sectionNumber}`;
+  document.getElementById('detail-title').textContent = ref;
+  const titleClean = (s.title || '').replace(/\s*\(.*?\)\s*$/, '').trim();
+  document.title = titleClean ? `${ref} — ${titleClean} | CA Legal Codes` : `${ref} | CA Legal Codes`;
 
   const badge = document.getElementById('detail-badge');
   badge.textContent = label;
@@ -712,7 +728,7 @@ function openDetail(sectionId, noHistory = false) {
     const ccrSec   = ccrNum ? State.allSections.find(sec => sec.code === 'CCR' && sec.sectionNumber === ccrNum) : null;
     if (ccrSec) {
       document.getElementById('calcrim-num').textContent   = `No. ${ccrSec.sectionNumber}`;
-      document.getElementById('calcrim-title').textContent = ccrSec.title.replace(/\s*\(.*?\)\s*$/, '');
+      document.getElementById('calcrim-title').textContent = (ccrSec.title || '').replace(/\s*\(.*?\)\s*$/, '');
       // Show a formatted preview of the first elements from the instruction
       const previewParas = splitCalcrimText(ccrSec.text).slice(0, 5);
       document.getElementById('calcrim-elements').innerHTML = renderCalcrimParas(previewParas);
@@ -735,16 +751,22 @@ function openDetail(sectionId, noHistory = false) {
     document.getElementById('detail-text').innerHTML = renderParas(paras, hilite);
   }
 
-  const link = document.getElementById('source-link');
+  const link   = document.getElementById('source-link');
+  const footer = document.querySelector('.detail-footer');
   if (s.code === 'CCR') {
     link.href = 'https://courts.ca.gov/system/files/file/calcrim-2026.pdf';
     link.textContent = 'View CALCRIM 2026 (Judicial Council PDF) ↗';
+    footer.hidden = !State.isOnline;
   } else if (s.code === 'EMC') {
     link.href = s.sourceUrl || 'https://codelibrary.amlegal.com/codes/eureka/latest/overview';
     link.textContent = 'View on codelibrary.amlegal.com ↗';
-  } else {
-    link.href = s.sourceUrl || '#';
+    footer.hidden = !State.isOnline;
+  } else if (s.sourceUrl) {
+    link.href = s.sourceUrl;
     link.textContent = 'View on leginfo.legislature.ca.gov ↗';
+    footer.hidden = !State.isOnline;
+  } else {
+    footer.hidden = true;
   }
 
   const overlay = document.getElementById('detail-overlay');
@@ -775,6 +797,7 @@ function openDetail(sectionId, noHistory = false) {
 function closeDetail() {
   document.getElementById('detail-overlay').hidden = true;
   document.body.style.overflow = '';
+  document.title = 'CA Legal Code Reference Guide';
   document.getElementById('search-input').focus();
 }
 
@@ -898,7 +921,7 @@ function showNoResults(query, parsed) {
 
   if (State.isOnline && parsed.type === 'section') {
     const lawCode = parsed.code || inferCode(parsed.num);
-    if (lawCode && lawCode !== 'EMC' && lawCode !== 'WIC' && lawCode !== 'CCR') {
+    if (lawCode && lawCode !== 'EMC' && lawCode !== 'CCR') {
       const url = `https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml`
         + `?sectionNum=${encodeURIComponent(parsed.num)}.&lawCode=${lawCode}`;
       const display = `${CODE_TO_UI[lawCode] || lawCode} §${parsed.num}`;
@@ -1103,6 +1126,7 @@ function toggleFavorite(sectionId) {
   }
   saveFavorites();
   updateFavBtn(sectionId);
+  updateFavsHeaderBtn();
 }
 
 function updateFavBtn(sectionId) {
@@ -1112,6 +1136,10 @@ function updateFavBtn(sectionId) {
   btn.classList.toggle('fav-active', isFav);
   btn.setAttribute('aria-label', isFav ? 'Remove from favorites' : 'Add to favorites');
   btn.dataset.sectionId = sectionId;
+}
+
+function updateFavsHeaderBtn() {
+  document.getElementById('favs-btn').classList.toggle('has-favs', State.favorites.size > 0);
 }
 
 function renderFavoritesIn(containerId) {
@@ -1210,7 +1238,7 @@ function setupSearchListeners() {
   const input    = document.getElementById('search-input');
   const clearBtn = document.getElementById('clear-btn');
 
-  const debouncedSearch = debounce(runSearch, 150);
+  const debouncedSearch = debounce(runSearch, 100);
 
   input.addEventListener('input', () => {
     State.searchQuery = input.value;
@@ -1276,7 +1304,17 @@ function setupDetailListeners() {
       if (!document.getElementById('detail-overlay').hidden) closeDetail();
       if (!document.getElementById('quick-overlay').hidden) closeQuickCodes();
       if (!document.getElementById('favs-overlay').hidden) closeFavs();
+      if (!document.getElementById('cat-overlay').hidden)  closeCategories();
     }
+  });
+
+  // Escape key closes the topmost open overlay
+  window.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (!document.getElementById('detail-overlay').hidden) { history.back(); return; }
+    if (!document.getElementById('quick-overlay').hidden)  { history.back(); return; }
+    if (!document.getElementById('favs-overlay').hidden)   { history.back(); return; }
+    if (!document.getElementById('cat-overlay').hidden)    { closeCategories(); }
   });
 
   // Swipe right to close on mobile
@@ -1296,8 +1334,9 @@ function setupOfflineListeners() {
   update();
 }
 
-// Swipe right from left edge to go back (mobile UX) — applied to any overlay
-function addSwipeToClose(overlayId) {
+// Swipe right from left edge to go back (mobile UX) — applied to any overlay.
+// Pass an optional closeFn for overlays that don't use history state (e.g. cat-overlay).
+function addSwipeToClose(overlayId, closeFn) {
   const overlay = document.getElementById(overlayId);
   let startX = 0;
   overlay.addEventListener('touchstart', e => {
@@ -1305,7 +1344,7 @@ function addSwipeToClose(overlayId) {
   }, { passive: true });
   overlay.addEventListener('touchend', e => {
     const dx = e.changedTouches[0].clientX - startX;
-    if (dx > 80 && startX < 60) history.back();
+    if (dx > 80 && startX < 60) { if (closeFn) closeFn(); else history.back(); }
   }, { passive: true });
 }
 
@@ -1313,6 +1352,7 @@ function setupSwipeToClose() {
   addSwipeToClose('detail-overlay');
   addSwipeToClose('quick-overlay');
   addSwipeToClose('favs-overlay');
+  addSwipeToClose('cat-overlay', closeCategories);
 }
 
 // ── Helpers ───────────────────────────────────────────────
