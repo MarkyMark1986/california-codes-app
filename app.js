@@ -1029,7 +1029,7 @@ function buildQuickCodesOverlay() {
 }
 
 function setupQuickCodesListeners() {
-  document.getElementById('quick-btn').addEventListener('click', openQuickCodes);
+  document.getElementById('quick-btn').addEventListener('click', () => openQuickCodes());
   document.getElementById('quick-back-btn').addEventListener('click', () => history.back());
 
   const list = document.getElementById('quick-list');
@@ -1159,19 +1159,22 @@ function setupOfflineListeners() {
   update();
 }
 
-// Swipe right on detail overlay to go back (mobile UX)
-function setupSwipeToClose() {
-  const overlay = document.getElementById('detail-overlay');
+// Swipe right from left edge to go back (mobile UX) — applied to any overlay
+function addSwipeToClose(overlayId) {
+  const overlay = document.getElementById(overlayId);
   let startX = 0;
-
   overlay.addEventListener('touchstart', e => {
     startX = e.touches[0].clientX;
   }, { passive: true });
-
   overlay.addEventListener('touchend', e => {
     const dx = e.changedTouches[0].clientX - startX;
     if (dx > 80 && startX < 60) history.back();
   }, { passive: true });
+}
+
+function setupSwipeToClose() {
+  addSwipeToClose('detail-overlay');
+  addSwipeToClose('quick-overlay');
 }
 
 // ── Helpers ───────────────────────────────────────────────
