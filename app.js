@@ -353,8 +353,9 @@ const QUICK_CODES = [
     { code: 'PEN', num: '148',   display: 'PC 148',        desc: 'Resisting arrest' },
   ]},
   { label: 'Probation & Parole', accent: '#6B21A8', items: [
-    { code: 'PEN', num: '1203.2', display: 'PC 1203.2',   desc: 'Probation violation' },
-    { code: 'PEN', num: '3056',   display: 'PC 3056',      desc: 'Parole violation' },
+    { code: 'PEN', num: '1203.2',  display: 'PC 1203.2',   desc: 'Probation violation' },
+    { code: 'PEN', num: '3000.08', display: 'PC 3000.08',  desc: 'Parole violation flash incarceration' },
+    { code: 'PEN', num: '3454',    display: 'PC 3454',      desc: 'PRCS violation flash incarceration' },
   ]},
   { label: 'Mental Health', accent: '#0D9488', items: [
     { code: 'WIC', num: '5150',  display: 'WIC 5150',      desc: 'Mental health hold' },
