@@ -314,6 +314,64 @@ const CALCRIM_MAP = {
   'WIC-1800': '3458', 'WIC-6605': '3454A',
 };
 
+// ── Commonly encountered codes ────────────────────────────
+const QUICK_CODES = [
+  { label: 'Crimes Against Persons', accent: '#B91C1C', items: [
+    { code: 'PEN', num: '187',   display: 'PC 187',        desc: 'Murder' },
+    { code: 'PEN', num: '211',   display: 'PC 211',        desc: 'Robbery' },
+    { code: 'PEN', num: '240',   display: 'PC 240/241',    desc: 'Assault' },
+    { code: 'PEN', num: '242',   display: 'PC 242/243',    desc: 'Battery' },
+    { code: 'PEN', num: '245',   display: 'PC 245',        desc: 'Assault with a deadly weapon' },
+    { code: 'PEN', num: '69',    display: 'PC 69',         desc: 'Obstruction / resisting executive officer' },
+    { code: 'PEN', num: '243',   display: 'PC 243(e)(1)',  desc: 'Domestic battery',                          sub: ['e','1'] },
+    { code: 'PEN', num: '273.5', display: 'PC 273.5',      desc: 'Corporal injury to spouse / cohabitant' },
+  ]},
+  { label: 'Theft & Property', accent: '#B45309', items: [
+    { code: 'PEN', num: '459',   display: 'PC 459',        desc: 'Burglary' },
+    { code: 'PEN', num: '484',   display: 'PC 484/488',    desc: 'Petty theft' },
+    { code: 'PEN', num: '487',   display: 'PC 487',        desc: 'Grand theft' },
+    { code: 'PEN', num: '594',   display: 'PC 594',        desc: 'Vandalism' },
+    { code: 'PEN', num: '666.1', display: 'PC 666.1',      desc: 'Shoplifting with prior' },
+  ]},
+  { label: 'Weapons', accent: '#374151', items: [
+    { code: 'PEN', num: '21310', display: 'PC 21310',      desc: 'Concealed dirk or dagger' },
+    { code: 'PEN', num: '25400', display: 'PC 25400',      desc: 'Concealed firearm' },
+    { code: 'PEN', num: '29800', display: 'PC 29800',      desc: 'Felon in possession of firearm' },
+    { code: 'PEN', num: '30305', display: 'PC 30305',      desc: 'Felon in possession of ammunition' },
+  ]},
+  { label: 'Drugs', accent: '#065F46', items: [
+    { code: 'HSC', num: '11350', display: 'H&S 11350',     desc: 'Possession of controlled substance' },
+    { code: 'HSC', num: '11377', display: 'H&S 11377',     desc: 'Possession of methamphetamine' },
+    { code: 'HSC', num: '11364', display: 'H&S 11364',     desc: 'Possession of drug paraphernalia' },
+    { code: 'HSC', num: '11395', display: 'H&S 11395(b)(1)', desc: 'Possession of hard drugs with prior', sub: ['b','1'] },
+  ]},
+  { label: 'Public Order', accent: '#0F766E', items: [
+    { code: 'PEN', num: '647',   display: 'PC 647(f)',     desc: 'Drunk in public',                           sub: ['f'] },
+    { code: 'PEN', num: '148',   display: 'PC 148',        desc: 'Resisting arrest' },
+  ]},
+  { label: 'Probation & Parole', accent: '#6B21A8', items: [
+    { code: 'PEN', num: '1203.2', display: 'PC 1203.2',   desc: 'Probation violation' },
+    { code: 'PEN', num: '3056',   display: 'PC 3056',      desc: 'Parole violation' },
+  ]},
+  { label: 'Mental Health', accent: '#0D9488', items: [
+    { code: 'WIC', num: '5150',  display: 'WIC 5150',      desc: 'Mental health hold' },
+  ]},
+  { label: 'Vehicle Offenses', accent: '#0369A1', items: [
+    { code: 'VEH', num: '23152', display: 'VC 23152',      desc: 'DUI' },
+    { code: 'VEH', num: '14601', display: 'VC 14601',      desc: 'Suspended license' },
+    { code: 'VEH', num: '22450', display: 'VC 22450',      desc: 'Stop sign violation' },
+    { code: 'VEH', num: '21453', display: 'VC 21453',      desc: 'Red light violation' },
+    { code: 'VEH', num: '22350', display: 'VC 22350',      desc: 'Speeding (unsafe speed)' },
+    { code: 'VEH', num: '22349', display: 'VC 22349',      desc: 'Speeding (maximum speed)' },
+    { code: 'VEH', num: '26710', display: 'VC 26710',      desc: 'Damaged windshield' },
+    { code: 'VEH', num: '26708', display: 'VC 26708',      desc: 'Tinted windows' },
+    { code: 'VEH', num: '21461', display: 'VC 21461',      desc: 'Disobeying traffic sign' },
+    { code: 'VEH', num: '16028', display: 'VC 16028',      desc: 'No proof of insurance' },
+    { code: 'VEH', num: '4000',  display: 'VC 4000',       desc: 'Unregistered vehicle' },
+    { code: 'VEH', num: '12500', display: 'VC 12500',      desc: 'Unlicensed driver' },
+  ]},
+];
+
 // ── Bootstrap ────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   registerServiceWorker();
@@ -323,6 +381,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupDetailListeners();
   setupCategoryListeners();
   buildCategoriesOverlay();
+  setupQuickCodesListeners();
+  buildQuickCodesOverlay();
   loadData();
 });
 
@@ -944,6 +1004,68 @@ function getCategorySections(catId, pool) {
     const n = parseFloat(s.sectionNumber);
     return cat.ranges.some(r => s.code === r.code && n >= r.min && n <= r.max);
   });
+}
+
+// ── Common codes overlay ──────────────────────────────────
+function buildQuickCodesOverlay() {
+  const list = document.getElementById('quick-list');
+  list.innerHTML = QUICK_CODES.map(group => `
+    <div class="quick-group" style="--qaccent:${group.accent}">
+      <div class="quick-group-header">${escapeHtml(group.label)}</div>
+      ${group.items.map(item => `
+        <div class="quick-item"
+             data-code="${item.code}"
+             data-num="${escapeHtml(item.num)}"
+             data-sub="${item.sub ? escapeHtml(JSON.stringify(item.sub)) : ''}"
+             role="button" tabindex="0"
+             aria-label="${escapeHtml(item.display)} — ${escapeHtml(item.desc)}">
+          <span class="quick-item-ref">${escapeHtml(item.display)}</span>
+          <span class="quick-item-desc">${escapeHtml(item.desc)}</span>
+          <span class="quick-item-arrow" aria-hidden="true">›</span>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+function setupQuickCodesListeners() {
+  document.getElementById('quick-btn').addEventListener('click', openQuickCodes);
+  document.getElementById('quick-back-btn').addEventListener('click', closeQuickCodes);
+
+  const list = document.getElementById('quick-list');
+  list.addEventListener('click', e => {
+    const item = e.target.closest('.quick-item');
+    if (item) handleQuickCodeTap(item);
+  });
+  list.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const item = e.target.closest('.quick-item');
+      if (item) { e.preventDefault(); handleQuickCodeTap(item); }
+    }
+  });
+}
+
+function handleQuickCodeTap(el) {
+  const code   = el.dataset.code;
+  const num    = el.dataset.num;
+  const subRaw = el.dataset.sub;
+  const section = State.allSections.find(s => s.code === code && s.sectionNumber === num);
+  if (!section) return;
+  closeQuickCodes();
+  State.pendingSub = subRaw ? JSON.parse(subRaw) : null;
+  openDetail(section.id);
+}
+
+function openQuickCodes() {
+  const overlay = document.getElementById('quick-overlay');
+  overlay.hidden = false;
+  overlay.focus();
+  document.body.style.overflow = 'hidden';
+}
+
+function closeQuickCodes() {
+  document.getElementById('quick-overlay').hidden = true;
+  document.body.style.overflow = '';
 }
 
 // ── Event listeners ───────────────────────────────────────
