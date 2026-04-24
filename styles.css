@@ -207,6 +207,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  overflow: hidden;
   -webkit-tap-highlight-color: rgba(200,150,12,.15);
   transition: box-shadow .12s, transform .1s;
   user-select: none;
@@ -521,8 +522,9 @@ body {
   color: #1F2937;
   line-height: 1.5;
   margin-bottom: 10px;
-  white-space: pre-wrap;
 }
+.calcrim-elements p { margin-bottom: .4em; }
+.calcrim-elements p:last-child { margin-bottom: 0; }
 .calcrim-view-btn {
   font-size: .8rem;
   color: #0D9488;

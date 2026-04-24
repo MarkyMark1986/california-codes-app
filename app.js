@@ -363,8 +363,11 @@ async function loadData() {
 
   } catch (err) {
     console.error('Failed to load ca_codes.json:', err);
-    document.getElementById('loading').innerHTML =
-      '<p>Failed to load code database. Please refresh.</p>';
+    const loadEl = document.getElementById('loading');
+    loadEl.querySelector('.spinner').hidden = true;
+    loadEl.querySelector('span').textContent = 'Failed to load code database. Please refresh.';
+    document.getElementById('results-count').hidden = true;
+    document.getElementById('welcome-panel').hidden = true;
   }
 }
 
@@ -544,7 +547,7 @@ function keywordSearch(query, pool) {
   if (!candidateIndices || candidateIndices.size === 0) return [];
 
   // Preserve original pool order; restrict to pool if a code filter is active
-  const poolSet = new Set(pool.map(s => State.allSections.indexOf(s)));
+  const poolSet = new Set(pool.map(s => s._idx));
   return [...candidateIndices]
     .filter(i => poolSet.has(i))
     .sort((a, b) => a - b)
@@ -579,7 +582,7 @@ function renderResults(sections) {
     art.innerHTML = `
       <div class="card-top">
         <span class="section-ref">${sectionRef}</span>
-        <span class="offense-badge badge-${s.offenseClass.replace('/', '-')}">${label}</span>
+        <span class="offense-badge badge-${(s.offenseClass || 'unknown').replace('/', '-')}">${label}</span>
       </div>
       ${hasChapter ? `<p class="chapter-tag">${escapeHtml(s.chapterInfo)}</p>` : ''}
       <p class="preview">${preview}${s.text.length > 140 ? '…' : ''}</p>
@@ -600,7 +603,7 @@ function renderResults(sections) {
 }
 
 // ── Detail view ───────────────────────────────────────────
-function openDetail(sectionId) {
+function openDetail(sectionId, replaceHistory = false) {
   const s = State.allSections.find(sec => sec.id === sectionId);
   if (!s) return;
 
@@ -615,7 +618,7 @@ function openDetail(sectionId) {
 
   const badge = document.getElementById('detail-badge');
   badge.textContent = label;
-  badge.className = `offense-badge badge-${s.offenseClass.replace('/', '-')}`;
+  badge.className = `offense-badge badge-${(s.offenseClass || 'unknown').replace('/', '-')}`;
 
   // Breadcrumb: Part › Chapter  (for CCR show code citation instead)
   if (s.code === 'CCR' && s.codeCitation) {
@@ -638,9 +641,9 @@ function openDetail(sectionId) {
     if (ccrSec) {
       document.getElementById('calcrim-num').textContent   = `No. ${ccrSec.sectionNumber}`;
       document.getElementById('calcrim-title').textContent = ccrSec.title.replace(/\s*\(.*?\)\s*$/, '');
-      // Show first 3 elements from the instruction text
-      const lines = ccrSec.text.split(/(?<=\.)\s+(?=[0-9A-Z\[])/).slice(0, 4).join(' ');
-      document.getElementById('calcrim-elements').textContent = lines.length > 400 ? lines.slice(0, 400) + '…' : lines;
+      // Show a formatted preview of the first elements from the instruction
+      const previewParas = splitCalcrimText(ccrSec.text).slice(0, 5);
+      document.getElementById('calcrim-elements').innerHTML = renderCalcrimParas(previewParas);
       cViewBtn.dataset.ccrId = ccrSec.id;
       cPanel.hidden = false;
     } else {
@@ -651,11 +654,12 @@ function openDetail(sectionId) {
   }
 
   // Split text into paragraphs and render — CalCrim uses its own formatter.
+  let hilite = -1;
   if (s.code === 'CCR') {
     document.getElementById('detail-text').innerHTML = renderCalcrimParas(splitCalcrimText(s.text));
   } else {
-    const paras  = splitSectionText(s.text);
-    const hilite = (sub && sub.length) ? findSubParagraph(paras, sub) : -1;
+    const paras = splitSectionText(s.text);
+    hilite = (sub && sub.length) ? findSubParagraph(paras, sub) : -1;
     document.getElementById('detail-text').innerHTML = renderParas(paras, hilite);
   }
 
@@ -690,7 +694,11 @@ function openDetail(sectionId) {
   }
   document.body.style.overflow = 'hidden';
 
-  history.pushState({ detail: sectionId }, '', `#${encodeURIComponent(sectionId)}`);
+  if (replaceHistory) {
+    history.replaceState({ detail: sectionId }, '', `#${encodeURIComponent(sectionId)}`);
+  } else {
+    history.pushState({ detail: sectionId }, '', `#${encodeURIComponent(sectionId)}`);
+  }
 }
 
 function closeDetail() {
@@ -711,7 +719,7 @@ function splitSectionText(text) {
   // Normalize non-breaking spaces — leginfo uses U+00A0 after subdivision markers.
   t = t.replace(/\u00a0/g, ' ');
   // Insert newline before subsection markers following sentence-end punctuation.
-  t = t.replace(/([.!;:])\s+(\([a-zA-Z]{1,2}\)|\(\d{1,3}\))[\s\u00a0]/g, '$1\n$2 ');
+  t = t.replace(/([.!;:])\s+(\([a-zA-Z]{1,2}\)|\(\d{1,3}\))[\s\u00a0]?/g, '$1\n$2 ');
   return t.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 }
 
@@ -853,9 +861,9 @@ function inferCode(numStr) {
   if (State.activeCode !== 'ALL') return State.activeCode;
   const n = parseInt(numStr, 10);
   if (isNaN(n)) return 'PEN';
+  if (n >= 11000 && n <= 25195) return 'HSC';  // check before VEH — overlapping range
+  if (n >= 4060  && n <= 10999) return 'BPC';  // B&P below HSC range
   if (n >= 2800  && n <= 31305) return 'VEH';
-  if (n >= 11000 && n <= 25195) return 'HSC';
-  if (n >= 4060  && n <= 25668) return 'BPC';
   return 'PEN';
 }
 
@@ -995,12 +1003,13 @@ function setupDetailListeners() {
 
   document.getElementById('calcrim-view-btn').addEventListener('click', e => {
     const ccrId = e.currentTarget.dataset.ccrId;
-    if (ccrId) openDetail(ccrId);
+    // Replace rather than push history so one back-tap returns to search results.
+    if (ccrId) openDetail(ccrId, true);
   });
 
-  // Back button / Android back gesture
+  // Back button / Android back gesture — only act if overlay is actually open
   window.addEventListener('popstate', e => {
-    if (!e.state?.detail) closeDetail();
+    if (!e.state?.detail && !document.getElementById('detail-overlay').hidden) closeDetail();
   });
 
   // Swipe right to close on mobile
@@ -1031,7 +1040,10 @@ function setupSwipeToClose() {
 
   overlay.addEventListener('touchend', e => {
     const dx = e.changedTouches[0].clientX - startX;
-    if (dx > 80 && startX < 60) history.back(); // swipe right from left edge
+    if (dx > 80 && startX < 60) {
+      closeDetail();
+      if (history.state?.detail) history.back();
+    }
   }, { passive: true });
 }
 
@@ -1048,7 +1060,7 @@ function updateCount(showing, total) {
   const el = document.getElementById('results-count');
   if (State.allSections.length === 0) { el.textContent = ''; return; }
   if (!State.searchQuery) {
-    el.textContent = `${total.toLocaleString()} sections loaded — search by number or keyword`;
+    el.textContent = `${total.toLocaleString()} sections loaded`;
     return;
   }
   el.textContent = showing === total
