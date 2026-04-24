@@ -603,7 +603,7 @@ function renderResults(sections) {
 }
 
 // ── Detail view ───────────────────────────────────────────
-function openDetail(sectionId, replaceHistory = false) {
+function openDetail(sectionId, noHistory = false) {
   const s = State.allSections.find(sec => sec.id === sectionId);
   if (!s) return;
 
@@ -694,9 +694,7 @@ function openDetail(sectionId, replaceHistory = false) {
   }
   document.body.style.overflow = 'hidden';
 
-  if (replaceHistory) {
-    history.replaceState({ detail: sectionId }, '', `#${encodeURIComponent(sectionId)}`);
-  } else {
+  if (!noHistory) {
     history.pushState({ detail: sectionId }, '', `#${encodeURIComponent(sectionId)}`);
   }
 }
@@ -997,19 +995,23 @@ function setupDetailListeners() {
   });
 
   document.getElementById('back-btn').addEventListener('click', () => {
-    closeDetail();
-    if (history.state?.detail) history.back();
+    history.back();
   });
 
   document.getElementById('calcrim-view-btn').addEventListener('click', e => {
     const ccrId = e.currentTarget.dataset.ccrId;
-    // Replace rather than push history so one back-tap returns to search results.
-    if (ccrId) openDetail(ccrId, true);
+    if (ccrId) openDetail(ccrId);
   });
 
-  // Back button / Android back gesture — only act if overlay is actually open
+  // Handle browser/OS back navigation:
+  // - If we land on a detail state, reopen that detail without pushing new history.
+  // - If we land on the root state, close the overlay.
   window.addEventListener('popstate', e => {
-    if (!e.state?.detail && !document.getElementById('detail-overlay').hidden) closeDetail();
+    if (e.state?.detail) {
+      openDetail(e.state.detail, true); // noHistory=true — state already set by popstate
+    } else if (!document.getElementById('detail-overlay').hidden) {
+      closeDetail();
+    }
   });
 
   // Swipe right to close on mobile
@@ -1040,10 +1042,7 @@ function setupSwipeToClose() {
 
   overlay.addEventListener('touchend', e => {
     const dx = e.changedTouches[0].clientX - startX;
-    if (dx > 80 && startX < 60) {
-      closeDetail();
-      if (history.state?.detail) history.back();
-    }
+    if (dx > 80 && startX < 60) history.back();
   }, { passive: true });
 }
 
