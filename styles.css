@@ -815,6 +815,69 @@ body {
   flex-shrink: 0;
 }
 
+/* ── Favorites ──────────────────────────────────────────── */
+#fav-btn {
+  height: var(--tap);
+  min-width: var(--tap);
+  padding: 0 8px;
+  border: none; border-radius: var(--radius);
+  background: rgba(255,255,255,.15);
+  color: rgba(255,255,255,.75);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: background .15s, color .15s;
+}
+#fav-btn:hover { background: rgba(255,255,255,.25); color: #fff; }
+#fav-btn.fav-active { color: var(--gold); }
+#fav-btn.fav-active svg path { fill: var(--gold); stroke: var(--gold); }
+
+/* Favorites overlay */
+#favs-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#favs-overlay[hidden] { display: none; }
+
+/* Tab bar in common codes overlay */
+.quick-tabs {
+  display: flex;
+  background: var(--navy-dark);
+  border-bottom: 1px solid rgba(255,255,255,.1);
+  flex-shrink: 0;
+}
+
+.quick-tab {
+  flex: 1;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,.6);
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+.quick-tab:hover { color: rgba(255,255,255,.85); }
+.quick-tab.active {
+  color: #fff;
+  border-bottom-color: var(--gold);
+}
+
+.favs-empty {
+  text-align: center;
+  color: var(--text-3);
+  font-size: .9rem;
+  padding: 48px 24px;
+  line-height: 1.6;
+}
+
 /* ── Responsive tweaks for larger screens ──────────────── */
 @media (min-width: 480px) {
   #app-header { padding-left: 20px; padding-right: 20px; }

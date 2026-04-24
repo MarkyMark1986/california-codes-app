@@ -29,6 +29,12 @@
                      stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
           </svg>
         </button>
+        <button id="favs-btn" class="browse-btn" aria-label="Favorites" title="Favorites">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+            <path d="M9 15.5S2 11 2 6.5a4 4 0 0 1 7-2.6A4 4 0 0 1 16 6.5c0 4.5-7 9-7 9z"
+                  stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <button id="browse-btn" class="browse-btn" aria-label="Browse by category" title="Browse categories">
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
             <rect x="1" y="1" width="6" height="6" rx="1" fill="currentColor"/>
@@ -121,6 +127,12 @@
       <button id="back-btn" aria-label="Back to results">← Back</button>
       <h1 id="detail-title" class="detail-title"></h1>
       <span id="detail-badge" class="offense-badge"></span>
+      <button id="fav-btn" aria-label="Add to favorites" title="Favorite">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M5 3h10a1 1 0 0 1 1 1v13l-6-3-6 3V4a1 1 0 0 1 1-1z"
+                stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+        </svg>
+      </button>
     </div>
 
     <div class="detail-body">
@@ -150,8 +162,13 @@
       <button id="quick-back-btn" aria-label="Back to search">← Back</button>
       <h1 id="quick-overlay-title">Common Codes</h1>
     </div>
+    <div class="quick-tabs" role="tablist">
+      <button class="quick-tab active" data-tab="codes" role="tab" aria-selected="true">Common Codes</button>
+      <button class="quick-tab" data-tab="favs" role="tab" aria-selected="false">Favorites</button>
+    </div>
     <div class="cat-overlay-body">
       <div id="quick-list"></div>
+      <div id="quick-favs" hidden></div>
     </div>
   </div>
 
@@ -164,6 +181,18 @@
     </div>
     <div class="cat-overlay-body">
       <div id="cat-list"></div>
+    </div>
+  </div>
+
+  <!-- ── Favorites overlay ────────────────────────────────── -->
+  <div id="favs-overlay" hidden role="dialog" aria-modal="true"
+       aria-labelledby="favs-overlay-title" tabindex="-1">
+    <div class="cat-overlay-header">
+      <button id="favs-back-btn" aria-label="Back to search">← Back</button>
+      <h1 id="favs-overlay-title">Favorites</h1>
+    </div>
+    <div class="cat-overlay-body">
+      <div id="favs-list"></div>
     </div>
   </div>
 

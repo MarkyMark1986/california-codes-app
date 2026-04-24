@@ -1,6 +1,8 @@
 'use strict';
 
 // ── State ────────────────────────────────────────────────
+const FAVORITES_KEY = 'ca-codes-favorites';
+
 const State = {
   allSections:      [],   // flat array of all section objects
   filteredSections: [],   // current search/filter result
@@ -9,7 +11,8 @@ const State = {
   isOnline:         navigator.onLine,
   searchIndex:      null, // Map: keyword -> Set<sectionIndex>
   pendingSub:       null, // subsection qualifier (e.g. 'f') to highlight on next openDetail
-  activeCategory:   null  // { id, label } of the currently active browse category
+  activeCategory:   null, // { id, label } of the currently active browse category
+  favorites:        new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]'))
 };
 
 const MAX_RENDER = 200; // cap DOM nodes; prompt user to refine past this
@@ -383,6 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
   buildCategoriesOverlay();
   setupQuickCodesListeners();
   buildQuickCodesOverlay();
+  setupFavoritesListeners();
   loadData();
 });
 
@@ -738,6 +742,7 @@ function openDetail(sectionId, noHistory = false) {
   const overlay = document.getElementById('detail-overlay');
   overlay.hidden = false;
   overlay.focus();
+  updateFavBtn(sectionId);
 
   // Always reset scroll first; then scroll highlighted paragraph into view.
   const body = overlay.querySelector('.detail-body');
@@ -1043,6 +1048,13 @@ function setupQuickCodesListeners() {
       if (item) { e.preventDefault(); handleQuickCodeTap(item); }
     }
   });
+
+  document.querySelector('.quick-tabs').addEventListener('click', e => {
+    const tab = e.target.closest('.quick-tab');
+    if (!tab) return;
+    activateQuickTab(tab.dataset.tab);
+    history.replaceState({ quick: true, tab: tab.dataset.tab }, '');
+  });
 }
 
 function handleQuickCodeTap(el) {
@@ -1056,17 +1068,133 @@ function handleQuickCodeTap(el) {
   openDetail(section.id);
 }
 
-function openQuickCodes(noHistory = false) {
+function openQuickCodes(noHistory = false, tab = 'codes') {
   const overlay = document.getElementById('quick-overlay');
   overlay.hidden = false;
   overlay.focus();
   document.body.style.overflow = 'hidden';
-  if (!noHistory) history.pushState({ quick: true }, '');
+  activateQuickTab(tab);
+  if (!noHistory) history.pushState({ quick: true, tab }, '');
 }
 
 function closeQuickCodes() {
   document.getElementById('quick-overlay').hidden = true;
   document.body.style.overflow = '';
+}
+
+// ── Favorites ─────────────────────────────────────────────
+function saveFavorites() {
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify([...State.favorites]));
+}
+
+function toggleFavorite(sectionId) {
+  if (State.favorites.has(sectionId)) {
+    State.favorites.delete(sectionId);
+  } else {
+    State.favorites.add(sectionId);
+  }
+  saveFavorites();
+  updateFavBtn(sectionId);
+}
+
+function updateFavBtn(sectionId) {
+  const btn = document.getElementById('fav-btn');
+  if (!btn) return;
+  const isFav = State.favorites.has(sectionId);
+  btn.classList.toggle('fav-active', isFav);
+  btn.setAttribute('aria-label', isFav ? 'Remove from favorites' : 'Add to favorites');
+  btn.dataset.sectionId = sectionId;
+}
+
+function renderFavoritesIn(containerId) {
+  const el = document.getElementById(containerId);
+  if (State.favorites.size === 0) {
+    el.innerHTML = '<p class="favs-empty">Tap the bookmark icon in any section to save it here.</p>';
+    return;
+  }
+  const sections = [...State.favorites]
+    .map(id => State.allSections.find(s => s.id === id))
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (a.code !== b.code) return a.code.localeCompare(b.code);
+      return parseFloat(a.sectionNumber) - parseFloat(b.sectionNumber);
+    });
+  el.innerHTML = sections.map(s => {
+    const uiCode = CODE_TO_UI[s.code] || s.code;
+    const ref = s.code === 'CCR'
+      ? `CALCRIM ${s.sectionNumber}`
+      : `${uiCode} §${s.sectionNumber}`;
+    const desc = escapeHtml((s.title || s.text || '').substring(0, 80));
+    return `<div class="quick-item fav-item" data-id="${escapeHtml(s.id)}"
+                 role="button" tabindex="0" aria-label="${escapeHtml(ref)}">
+      <span class="quick-item-ref">${escapeHtml(ref)}</span>
+      <span class="quick-item-desc">${desc}</span>
+      <span class="quick-item-arrow" aria-hidden="true">›</span>
+    </div>`;
+  }).join('');
+}
+
+function openFavs(noHistory = false) {
+  renderFavoritesIn('favs-list');
+  const overlay = document.getElementById('favs-overlay');
+  overlay.hidden = false;
+  overlay.focus();
+  document.body.style.overflow = 'hidden';
+  if (!noHistory) history.pushState({ favs: true }, '');
+}
+
+function closeFavs() {
+  document.getElementById('favs-overlay').hidden = true;
+  document.body.style.overflow = '';
+}
+
+function activateQuickTab(tab) {
+  const codesTab  = document.querySelector('.quick-tab[data-tab="codes"]');
+  const favsTab   = document.querySelector('.quick-tab[data-tab="favs"]');
+  const quickList = document.getElementById('quick-list');
+  const quickFavs = document.getElementById('quick-favs');
+  const showFavs  = tab === 'favs';
+  codesTab.classList.toggle('active', !showFavs);
+  codesTab.setAttribute('aria-selected', String(!showFavs));
+  favsTab.classList.toggle('active', showFavs);
+  favsTab.setAttribute('aria-selected', String(showFavs));
+  quickList.hidden = showFavs;
+  quickFavs.hidden = !showFavs;
+  if (showFavs) renderFavoritesIn('quick-favs');
+}
+
+function setupFavoritesListeners() {
+  document.getElementById('favs-btn').addEventListener('click', () => openFavs());
+  document.getElementById('favs-back-btn').addEventListener('click', () => history.back());
+
+  document.getElementById('fav-btn').addEventListener('click', () => {
+    const id = document.getElementById('fav-btn').dataset.sectionId;
+    if (id) toggleFavorite(id);
+  });
+
+  const favsList = document.getElementById('favs-list');
+  favsList.addEventListener('click', e => {
+    const item = e.target.closest('.fav-item');
+    if (item) { closeFavs(); openDetail(item.dataset.id); }
+  });
+  favsList.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const item = e.target.closest('.fav-item');
+      if (item) { e.preventDefault(); closeFavs(); openDetail(item.dataset.id); }
+    }
+  });
+
+  const quickFavs = document.getElementById('quick-favs');
+  quickFavs.addEventListener('click', e => {
+    const item = e.target.closest('.fav-item');
+    if (item) { closeQuickCodes(); openDetail(item.dataset.id); }
+  });
+  quickFavs.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const item = e.target.closest('.fav-item');
+      if (item) { e.preventDefault(); closeQuickCodes(); openDetail(item.dataset.id); }
+    }
+  });
 }
 
 // ── Event listeners ───────────────────────────────────────
@@ -1129,16 +1257,17 @@ function setupDetailListeners() {
   // Handle browser/OS back navigation.
   window.addEventListener('popstate', e => {
     if (e.state?.detail) {
-      // Restore a previous detail view without pushing new history.
       openDetail(e.state.detail, true);
     } else if (e.state?.quick) {
-      // Navigated back to the Common Codes overlay — restore it.
       if (!document.getElementById('detail-overlay').hidden) closeDetail();
-      openQuickCodes(true);
+      openQuickCodes(true, e.state.tab || 'codes');
+    } else if (e.state?.favs) {
+      if (!document.getElementById('detail-overlay').hidden) closeDetail();
+      openFavs(true);
     } else {
-      // Root state — close whichever overlay is open.
       if (!document.getElementById('detail-overlay').hidden) closeDetail();
       if (!document.getElementById('quick-overlay').hidden) closeQuickCodes();
+      if (!document.getElementById('favs-overlay').hidden) closeFavs();
     }
   });
 
@@ -1175,6 +1304,7 @@ function addSwipeToClose(overlayId) {
 function setupSwipeToClose() {
   addSwipeToClose('detail-overlay');
   addSwipeToClose('quick-overlay');
+  addSwipeToClose('favs-overlay');
 }
 
 // ── Helpers ───────────────────────────────────────────────
