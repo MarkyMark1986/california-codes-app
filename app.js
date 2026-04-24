@@ -1030,7 +1030,7 @@ function buildQuickCodesOverlay() {
 
 function setupQuickCodesListeners() {
   document.getElementById('quick-btn').addEventListener('click', openQuickCodes);
-  document.getElementById('quick-back-btn').addEventListener('click', closeQuickCodes);
+  document.getElementById('quick-back-btn').addEventListener('click', () => history.back());
 
   const list = document.getElementById('quick-list');
   list.addEventListener('click', e => {
@@ -1056,11 +1056,12 @@ function handleQuickCodeTap(el) {
   openDetail(section.id);
 }
 
-function openQuickCodes() {
+function openQuickCodes(noHistory = false) {
   const overlay = document.getElementById('quick-overlay');
   overlay.hidden = false;
   overlay.focus();
   document.body.style.overflow = 'hidden';
+  if (!noHistory) history.pushState({ quick: true }, '');
 }
 
 function closeQuickCodes() {
@@ -1125,14 +1126,19 @@ function setupDetailListeners() {
     if (ccrId) openDetail(ccrId);
   });
 
-  // Handle browser/OS back navigation:
-  // - If we land on a detail state, reopen that detail without pushing new history.
-  // - If we land on the root state, close the overlay.
+  // Handle browser/OS back navigation.
   window.addEventListener('popstate', e => {
     if (e.state?.detail) {
-      openDetail(e.state.detail, true); // noHistory=true — state already set by popstate
-    } else if (!document.getElementById('detail-overlay').hidden) {
-      closeDetail();
+      // Restore a previous detail view without pushing new history.
+      openDetail(e.state.detail, true);
+    } else if (e.state?.quick) {
+      // Navigated back to the Common Codes overlay — restore it.
+      if (!document.getElementById('detail-overlay').hidden) closeDetail();
+      openQuickCodes(true);
+    } else {
+      // Root state — close whichever overlay is open.
+      if (!document.getElementById('detail-overlay').hidden) closeDetail();
+      if (!document.getElementById('quick-overlay').hidden) closeQuickCodes();
     }
   });
 
